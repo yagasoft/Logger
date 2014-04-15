@@ -1,12 +1,12 @@
-/*
+/* 
  * Copyright (C) 2011-2014 by Ahmed Osama el-Sawalhy
- *
+ * 
  *		The Modified MIT Licence (GPL v3 compatible)
- * 			Licence terms are in a separate file (LICENCE.md)
- *
+ * 			License terms are in a separate file (LICENCE.md)
+ * 
  *		Project/File: Logger/com.yagasoft.logger/Logger.java
- *
- *			Modified: 13-Apr-2014 (13:23:22)
+ * 
+ *			Modified: Apr 15, 2014 (7:54:46 AM)
  *			   Using: Eclipse J-EE / JDK 7 / Windows 8.1 x64
  */
 
@@ -42,17 +42,17 @@ public class Logger
 {
 	
 	/** Logger window is visible. */
-	private static boolean				visible		= false;
+	private static boolean				visible			= false;
 	
 	/** Constant: Log entry divider. */
-	private static final String			divider		= "----------------------------------------------------------------------------------"
-															+ "------------------------------------------------------------------------\n";
+	private static final String			divider			= "----------------------------------------------------------------------------------"
+																+ "------------------------------------------------------------------------\n";
 	
 	/** Section open flag. */
-	private static boolean				sectionOpen	= false;
+	private static boolean				sectionOpen		= false;
 	
 	/** Constant: LogsFolder. */
-	private static final Path			logsFolder	= Paths.get(System.getProperty("user.dir") + "/var/logs/");
+	private static final Path			logsFolder		= Paths.get(System.getProperty("user.dir") + "/var/logs/");
 	
 	/** Log file path. */
 	private static Path					logFile;
@@ -64,13 +64,16 @@ public class Logger
 	private static OutputStreamWriter	writer;
 	
 	/** Logger window frame. */
-	private static JFrame				frame		= initFrame();
+	private static JFrame				frame			= initFrame();
 	
 	/** Logger content pane. */
-	private static JPanel				contentPane	= initPanel();
+	private static JPanel				contentPane		= initPanel();
 	
 	/** Logger text area. */
-	private static JTextArea			textArea	= initLog();
+	private static JTextArea			textArea		= initLog();
+	
+	/** The current section title. */
+	private static String				currentTitle	= "";
 	
 	/**
 	 * The main method.
@@ -172,6 +175,19 @@ public class Logger
 	}
 	
 	/**
+	 * New titled log section,
+	 * which can be used to post related entries without bothering with remembering if a related section was open before.
+	 */
+	public static void newTitledSection(String title)
+	{
+		if ( !Logger.currentTitle.equals(title))
+		{
+			currentTitle = title;
+			newSection(">>>>> New section: " + title);
+		}
+	}
+	
+	/**
 	 * New log section.
 	 */
 	public static void newSection()
@@ -234,6 +250,8 @@ public class Logger
 	 */
 	public static void endSection(String entry)
 	{
+		currentTitle = "";
+		
 		// want to end a section when a section is not open?
 		if ( !sectionOpen)
 		{

@@ -1,17 +1,17 @@
 Logger
-========
+======
 
 A simple GUI logger that saves its entries to a log file in real time.
 
 ### Features:
 
-	+ Creates a log file in the app folder automatically.
-	+ Flush entries to the file automatically.
-	+ Use sections to indicate related entries.
+  + Creates a log file in the app folder automatically.
+  + Flush entries to the file automatically.
+  + Use sections to indicate related entries.
 
 ### Developers' notes:
 
-	+ Will add colouring and formatting in the future.
+  + Will add colouring and formatting in the future.
 
 
 <br>
