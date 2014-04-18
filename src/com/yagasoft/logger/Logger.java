@@ -211,7 +211,7 @@ public class Logger
 	/**
 	 * Show logger window.
 	 */
-	public static void showLogger()
+	public static synchronized void showLogger()
 	{
 		visible = true;
 		frame.setVisible(visible);
@@ -220,7 +220,7 @@ public class Logger
 	/**
 	 * Hide logger window.
 	 */
-	public static void hideLogger()
+	public static synchronized void hideLogger()
 	{
 		visible = false;
 		frame.setVisible(visible);
@@ -240,7 +240,7 @@ public class Logger
 	 * @param entry
 	 *            Entry.
 	 */
-	public static void info(String entry)
+	public static synchronized void info(String entry)
 	{
 		// write the time stamp, then the entry next to it.
 
@@ -262,7 +262,7 @@ public class Logger
 	 * @param entry
 	 *            Entry.
 	 */
-	public static void info(String... entries)
+	public static synchronized void info(String... entries)
 	{
 		// write the time stamp, then the entry next to it.
 
@@ -286,7 +286,7 @@ public class Logger
 	 * @param entry
 	 *            Entry.
 	 */
-	public static void error(String entry)
+	public static synchronized void error(String entry)
 	{
 		// write the time stamp, then the error next to it.
 
@@ -309,7 +309,7 @@ public class Logger
 	 * @param entry
 	 *            Entry.
 	 */
-	public static void errors(String... entries)
+	public static synchronized void errors(String... entries)
 	{
 		// write the time stamp, then the error next to it.
 
@@ -331,7 +331,7 @@ public class Logger
 	 * @param exception
 	 *            the Exception.
 	 */
-	public static void except(Exception exception)
+	public static synchronized void except(Exception exception)
 	{
 		// write the time stamp, then the exception below it.
 
