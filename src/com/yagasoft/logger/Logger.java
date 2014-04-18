@@ -1,12 +1,12 @@
-/*
+/* 
  * Copyright (C) 2011-2014 by Ahmed Osama el-Sawalhy
- *
+ * 
  *		The Modified MIT Licence (GPL v3 compatible)
  * 			Licence terms are in a separate file (LICENCE.md)
- *
+ * 
  *		Project/File: Logger/com.yagasoft.logger/Logger.java
- *
- *			Modified: 18-Apr-2014 (16:16:50)
+ * 
+ *			Modified: 18-Apr-2014 (16:46:30)
  *			   Using: Eclipse J-EE / JDK 7 / Windows 8.1 x64
  */
 
@@ -25,7 +25,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
-import java.text.DateFormat;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Date;
@@ -59,6 +58,9 @@ public class Logger
 	
 	/** Logger window is visible. */
 	private static boolean				visible		= false;
+	
+	/** Current date. This is used for {@link #postDateIfChanged()}. */
+	private static String				date		= "";
 	
 	/** Constant: LogsFolder. */
 	private static final Path			logsFolder	= Paths.get(System.getProperty("user.dir") + "/var/logs/");
@@ -114,6 +116,9 @@ public class Logger
 		
 		except(new Exception("Test!"));
 		
+		info(new String[] { "ttetetetest", "testtt", "final testttettetet" });
+		errors(new String[] { "testtt", "ttetetetest", "final test" });
+		
 		// must stop process manually.
 	}
 	
@@ -160,6 +165,7 @@ public class Logger
 	 */
 	private static JTextPane initLog()
 	{
+		// no-wrapping hint credit: Rob Camick (http://tips4java.wordpress.com/2009/01/25/no-wrap-text-pane/)
 		textPane = new JTextPane()
 		{
 			
@@ -235,14 +241,40 @@ public class Logger
 	{
 		// write the time stamp, then the entry next to it.
 		
-		AttributeSet style = getStyle(13, Styles.PLAIN, null);
-		append(getTimeStamp() + ": ", style);
+		// time-stamp
+		postTimeStamp();
 		
-		style = getStyle( -1, Styles.ITALIC, new Color(0, 150, 0));
+		// line label
+		AttributeSet style = getStyle( -1, Styles.ITALIC, Color.BLUE);
 		append("Info:   ", style);
 		
+		// entry itself.
 		style = getStyle( -1, Styles.PLAIN, Color.BLUE);
 		append(entry + "\n", style);
+	}
+	
+	/**
+	 * Informing log entries. This will be posted one after the other in the same time-stamp.
+	 * 
+	 * @param entry
+	 *            Entry.
+	 */
+	public static void info(String... entries)
+	{
+		// write the time stamp, then the entry next to it.
+		
+		postTimeStamp();
+		
+		AttributeSet style = getStyle( -1, Styles.ITALIC, new Color(0, 150, 0));
+		append("Info:\n", style);
+		
+		// post entries
+		style = getStyle( -1, Styles.PLAIN, Color.BLUE);
+		
+		for (String entry : entries)
+		{
+			append(entry + "\n", style);
+		}
 	}
 	
 	/**
@@ -255,33 +287,54 @@ public class Logger
 	{
 		// write the time stamp, then the error next to it.
 		
-		AttributeSet style = getStyle( -1, Styles.PLAIN, null);
-		append(getTimeStamp() + ": ", style);
+		postTimeStamp();
 		
-		style = getStyle( -1, Styles.BOLDITALIC, Color.RED);
+		AttributeSet style = getStyle( -1, Styles.BOLDITALIC, Color.RED);
 		append("!! ERROR >>   ", style);
 		
-		style = getStyle( -1, Styles.PLAIN, Color.BLUE);
+		style = getStyle( -1, Styles.PLAIN, Color.RED);
 		append(entry, style);
 		
+		// add an extra label to be very apparent.
 		style = getStyle( -1, Styles.BOLDITALIC, Color.RED);
 		append("   << ERROR !!\n", style);
 	}
 	
 	/**
-	 * Exception log entry.
+	 * Error log entry. This will be posted one after the other in the same time-stamp.
 	 * 
 	 * @param entry
 	 *            Entry.
+	 */
+	public static void errors(String... entries)
+	{
+		// write the time stamp, then the error next to it.
+		
+		postTimeStamp();
+		
+		AttributeSet style = getStyle( -1, Styles.BOLDITALIC, Color.RED);
+		append("!! ERRORS !!\n", style);
+		
+		style = getStyle( -1, Styles.PLAIN, Color.RED);
+		for (String entry : entries)
+		{
+			append(entry + "\n", style);
+		}
+	}
+	
+	/**
+	 * Exception log entry.
+	 * 
+	 * @param exception
+	 *            the Exception.
 	 */
 	public static void except(Exception exception)
 	{
 		// write the time stamp, then the exception below it.
 		
-		AttributeSet style = getStyle( -1, Styles.PLAIN, null);
-		append(getTimeStamp() + ": ", style);
+		postTimeStamp();
 		
-		style = getStyle( -1, Styles.BOLDITALIC, Color.RED);
+		AttributeSet style = getStyle( -1, Styles.BOLDITALIC, Color.RED);
 		append("!! EXCEPTION !!\n", style);
 		
 		// define how to handle the character in the stack trace.
@@ -333,7 +386,9 @@ public class Logger
 	 * Append text to the log as is, then write it to log file.
 	 * 
 	 * @param text
-	 *            Text.
+	 *            Text to post.
+	 * @param style
+	 *            the style to use.
 	 */
 	private static void append(String text, AttributeSet style)
 	{
@@ -345,6 +400,7 @@ public class Logger
 		{
 			e.printStackTrace();
 		}
+		
 		flush(text);		// save to disk log file
 		
 		// make sure the frame visibility state is correct.
@@ -354,14 +410,54 @@ public class Logger
 		}
 	}
 	
-	/**
-	 * Create the time stamp from the system's date and time.
-	 * 
-	 * @return the time stamp
-	 */
-	private static String getTimeStamp()
+	private static void postTimeStamp()
 	{
-		return DateFormat.getDateTimeInstance().format(new Date());
+//		postDateIfChanged();
+		
+		// post date in light colour because it's repeated too much, so it becomes distracting.
+		AttributeSet style = getStyle( -1, Styles.PLAIN, new Color(180, 180, 180));
+		append(getDate() + " ", style);
+		
+		// post time in black.
+		style = getStyle( -1, Styles.PLAIN, null);
+		append(getTime() + ": ", style);
+	}
+	
+	/**
+	 * Posts the date if it has changed from the saved one -- saves space in the log.
+	 */
+	@SuppressWarnings("unused")
+	private static void postDateIfChanged()
+	{
+		if ( !getDate().equals(date))
+		{
+			// save current date if it has changed.
+			date = getDate();
+			
+			// post the new date in a bright colour.
+			AttributeSet style = getStyle(14, Styles.BOLD, new Color(255, 150, 0));
+			append(getDate() + " ", style);
+		}
+	}
+	
+	/**
+	 * Create a current date string.
+	 * 
+	 * @return the time
+	 */
+	private static String getDate()
+	{
+		return new SimpleDateFormat("dd/MMM/yy").format(new Date()) /* DateFormat.getDateInstance().format(new Date()) */;
+	}
+	
+	/**
+	 * Create a current time string.
+	 * 
+	 * @return the time
+	 */
+	private static String getTime()
+	{
+		return new SimpleDateFormat("hh:mm:ss aa").format(new Date());
 	}
 	
 	/**
