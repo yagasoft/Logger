@@ -1,12 +1,12 @@
-/* 
+/*
  * Copyright (C) 2011-2014 by Ahmed Osama el-Sawalhy
- * 
+ *
  *		The Modified MIT Licence (GPL v3 compatible)
- * 			License terms are in a separate file (LICENCE.md)
- * 
+ * 			Licence terms are in a separate file (LICENCE.md)
+ *
  *		Project/File: Logger/com.yagasoft.logger/Logger.java
- * 
- *			Modified: Apr 15, 2014 (7:54:46 AM)
+ *
+ *			Modified: 18-Apr-2014 (16:16:50)
  *			   Using: Eclipse J-EE / JDK 7 / Windows 8.1 x64
  */
 
@@ -14,45 +14,54 @@ package com.yagasoft.logger;
 
 
 import java.awt.BorderLayout;
+import java.awt.Color;
+import java.awt.Font;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.io.OutputStreamWriter;
+import java.io.PrintWriter;
+import java.io.Writer;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
 import java.text.DateFormat;
 import java.text.SimpleDateFormat;
+import java.util.ArrayList;
 import java.util.Date;
 
 import javax.swing.JFrame;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
-import javax.swing.JTextArea;
+import javax.swing.JTextPane;
 import javax.swing.ScrollPaneConstants;
 import javax.swing.WindowConstants;
 import javax.swing.border.EmptyBorder;
+import javax.swing.text.AttributeSet;
+import javax.swing.text.BadLocationException;
 import javax.swing.text.DefaultCaret;
+import javax.swing.text.MutableAttributeSet;
+import javax.swing.text.StyleConstants;
 
 
 /**
- * The Class Logger.
+ * This class contains static methods to log entries, display them in a stylised form, and save them to disk in a log file.<br />
+ * <br />
+ * Everything is initialised automatically when calling the first post or error or exception. (everything is static)<br/>
+ * To show the window call {@link #showLogger()}, which does initialise the log as above if it was the first thing called.<br />
+ * <br/>
+ * <strong>Defaults:</strong> read 'README.md'.
  */
 public class Logger
 {
 	
+	// please, don't change the order of the fields.
+	
 	/** Logger window is visible. */
-	private static boolean				visible			= false;
-	
-	/** Constant: Log entry divider. */
-	private static final String			divider			= "----------------------------------------------------------------------------------"
-																+ "------------------------------------------------------------------------\n";
-	
-	/** Section open flag. */
-	private static boolean				sectionOpen		= false;
+	private static boolean				visible		= false;
 	
 	/** Constant: LogsFolder. */
-	private static final Path			logsFolder		= Paths.get(System.getProperty("user.dir") + "/var/logs/");
+	private static final Path			logsFolder	= Paths.get(System.getProperty("user.dir") + "/var/logs/");
 	
 	/** Log file path. */
 	private static Path					logFile;
@@ -64,19 +73,27 @@ public class Logger
 	private static OutputStreamWriter	writer;
 	
 	/** Logger window frame. */
-	private static JFrame				frame			= initFrame();
+	private static JFrame				frame		= initFrame();
 	
 	/** Logger content pane. */
-	private static JPanel				contentPane		= initPanel();
+	private static JPanel				contentPane	= initPanel();
 	
-	/** Logger text area. */
-	private static JTextArea			textArea		= initLog();
-	
-	/** The current section title. */
-	private static String				currentTitle	= "";
+	/** Logger text pane. */
+	private static JTextPane			textPane	= initLog();
 	
 	/**
-	 * The main method.
+	 * Styles passed to {@link Logger#getStyle(int, Styles, Color)}.
+	 */
+	private enum Styles
+	{
+		PLAIN,
+		BOLD,
+		ITALIC,
+		BOLDITALIC
+	}
+	
+	/**
+	 * Tester method.
 	 * 
 	 * @param args
 	 *            the arguments
@@ -85,34 +102,24 @@ public class Logger
 	{
 		showLogger();
 		
-		post("TEST1!!!");
-		post("TEST2!!!");
+		info("TEST1!!!");
+		error("TEST2!!!");
 		
 		hideLogger();
 		
-		post("TEST3!!!");
-		post("TEST4!!!");
+		error("TEST3!!!");
+		info("TEST4!!!");
 		
 		showLogger();
+		
+		except(new Exception("Test!"));
+		
+		// must stop process manually.
 	}
 	
-	/**
-	 * Show logger window.
-	 */
-	public static void showLogger()
-	{
-		visible = true;
-		frame.setVisible(visible);
-	}
-	
-	/**
-	 * Hide logger window.
-	 */
-	public static void hideLogger()
-	{
-		visible = false;
-		frame.setVisible(visible);
-	}
+	// //////////////////////////////////////////////////////////////////////////////////////
+	// #region Initialisation.
+	// ======================================================================================
 	
 	/**
 	 * Inits the frame.
@@ -151,136 +158,176 @@ public class Logger
 	 * 
 	 * @return the text area
 	 */
-	private static JTextArea initLog()
+	private static JTextPane initLog()
 	{
-		textArea = new JTextArea();
-		textArea.setEditable(false);
-		textArea.setLineWrap(false);
+		textPane = new JTextPane()
+		{
+			
+			private static final long	serialVersionUID	= 9120063598362532890L;
+			
+			@Override
+			public boolean getScrollableTracksViewportWidth()
+			{
+				return getUI().getPreferredSize(this).width <= getParent().getSize().width;
+			}
+		};
 		
-		JScrollPane scroller = new JScrollPane(textArea);
+		textPane.setEditable(false);
+		
+		JScrollPane scroller = new JScrollPane(textPane);
 		scroller.setVerticalScrollBarPolicy(ScrollPaneConstants.VERTICAL_SCROLLBAR_AS_NEEDED);
 		scroller.setHorizontalScrollBarPolicy(ScrollPaneConstants.HORIZONTAL_SCROLLBAR_AS_NEEDED);
 		
-		DefaultCaret caret = (DefaultCaret) textArea.getCaret();
+		DefaultCaret caret = (DefaultCaret) textPane.getCaret();
 		caret.setUpdatePolicy(DefaultCaret.ALWAYS_UPDATE);
 		
 		contentPane.add(scroller);
 		frame.revalidate();
 		
 		// post something and create a log file for this session.
-		post("NEW LOG!");
+		info("!!! NEW LOG !!!");
 		newLogFile();
 		
-		return textArea;
+		return textPane;
 	}
 	
+	// ======================================================================================
+	// #endregion Initialisation.
+	// //////////////////////////////////////////////////////////////////////////////////////
+	
+	// //////////////////////////////////////////////////////////////////////////////////////
+	// #region Window control.
+	// ======================================================================================
+	
 	/**
-	 * New titled log section,
-	 * which can be used to post related entries without bothering with remembering if a related section was open before.
+	 * Show logger window.
 	 */
-	public static void newTitledSection(String title)
+	public static void showLogger()
 	{
-		if ( !Logger.currentTitle.equals(title))
-		{
-			currentTitle = title;
-			newSection(">>>>> New section: " + title);
-		}
+		visible = true;
+		frame.setVisible(visible);
 	}
 	
 	/**
-	 * New log section.
+	 * Hide logger window.
 	 */
-	public static void newSection()
+	public static void hideLogger()
 	{
-		newSection("");
+		visible = false;
+		frame.setVisible(visible);
 	}
 	
+	// ======================================================================================
+	// #endregion Window control.
+	// //////////////////////////////////////////////////////////////////////////////////////
+	
+	// //////////////////////////////////////////////////////////////////////////////////////
+	// #region Public posting interface.
+	// ======================================================================================
+	
 	/**
-	 * New log section, and post the passed entry right after.
+	 * Informing log entry.
 	 * 
 	 * @param entry
 	 *            Entry.
 	 */
-	public static void newSection(String entry)
+	public static void info(String entry)
 	{
-		sectionOpen = true;
-		append(divider);
+		// write the time stamp, then the entry next to it.
 		
-		// if nothing was passed, then write nothing.
-		if ((entry != null) && (entry.length() > 0))
-		{
-			newEntry(entry);
-		}
+		AttributeSet style = getStyle(13, Styles.PLAIN, null);
+		append(getTimeStamp() + ": ", style);
+		
+		style = getStyle( -1, Styles.ITALIC, new Color(0, 150, 0));
+		append("Info:   ", style);
+		
+		style = getStyle( -1, Styles.PLAIN, Color.BLUE);
+		append(entry + "\n", style);
 	}
 	
 	/**
-	 * New log entry.
+	 * Error log entry.
 	 * 
 	 * @param entry
 	 *            Entry.
 	 */
-	public static void newEntry(String entry)
+	public static void error(String entry)
 	{
-		// must make sure to write in a section.
-		if (sectionOpen)
-		{
-			// write the time stamp, then the entry next to it.
-			append(getTimeStamp() + ": ");
-			append(entry + "\n");
-		}
-		else
-		{	// create new section if necessary.
-			newSection(entry);
-		}
+		// write the time stamp, then the error next to it.
+		
+		AttributeSet style = getStyle( -1, Styles.PLAIN, null);
+		append(getTimeStamp() + ": ", style);
+		
+		style = getStyle( -1, Styles.BOLDITALIC, Color.RED);
+		append("!! ERROR >>   ", style);
+		
+		style = getStyle( -1, Styles.PLAIN, Color.BLUE);
+		append(entry, style);
+		
+		style = getStyle( -1, Styles.BOLDITALIC, Color.RED);
+		append("   << ERROR !!\n", style);
 	}
 	
 	/**
-	 * End log section.
-	 */
-	public static void endSection()
-	{
-		endSection("");
-	}
-	
-	/**
-	 * End log section, and write the passed entry.
+	 * Exception log entry.
 	 * 
 	 * @param entry
 	 *            Entry.
 	 */
-	public static void endSection(String entry)
+	public static void except(Exception exception)
 	{
-		currentTitle = "";
+		// write the time stamp, then the exception below it.
 		
-		// want to end a section when a section is not open?
-		if ( !sectionOpen)
+		AttributeSet style = getStyle( -1, Styles.PLAIN, null);
+		append(getTimeStamp() + ": ", style);
+		
+		style = getStyle( -1, Styles.BOLDITALIC, Color.RED);
+		append("!! EXCEPTION !!\n", style);
+		
+		// define how to handle the character in the stack trace.
+		PrintWriter exceptionWriter = new PrintWriter(new Writer()
 		{
-			// open a section, then close it right after.
-			newSection(entry);
-			endSection();
-			return;		// done!
-		}
+			
+			// store lines in the stack trace to print later.
+			ArrayList<String>	lines	= new ArrayList<String>();
+			
+			@Override
+			public void write(char[] cbuf, int off, int len) throws IOException
+			{
+				lines.add(new String(cbuf, off, len));
+			}
+			
+			@Override
+			public void flush() throws IOException
+			{
+				AttributeSet styleTemp = getStyle( -1, Styles.PLAIN, Color.RED);
+				
+				for (String line : lines)
+				{
+					Logger.append(line, styleTemp);		// send to the logger.
+				}
+			}
+			
+			@Override
+			public void close() throws IOException
+			{}
+		});
 		
-		// nothing to write?
-		if ((entry != null) && (entry.length() > 0))
-		{
-			newEntry(entry);
-		}
+		// print the exception.
+		exception.printStackTrace(exceptionWriter);
+		exceptionWriter.flush();
+		exceptionWriter.close();
 		
-		sectionOpen = false;		// section is done!
+		Logger.append("\n", null);		// send to the logger.
 	}
 	
-	/**
-	 * Post an entry in a separate section.
-	 * 
-	 * @param text
-	 *            Text to post.
-	 */
-	public static void post(String text)
-	{
-		newSection(text);
-		endSection();
-	}
+	// ======================================================================================
+	// #endregion Public posting interface.
+	// //////////////////////////////////////////////////////////////////////////////////////
+	
+	// //////////////////////////////////////////////////////////////////////////////////////
+	// #region Text methods.
+	// ======================================================================================
 	
 	/**
 	 * Append text to the log as is, then write it to log file.
@@ -288,10 +335,17 @@ public class Logger
 	 * @param text
 	 *            Text.
 	 */
-	private static void append(String text)
+	private static void append(String text, AttributeSet style)
 	{
-		textArea.append(text);
-		flush(text);
+		try
+		{
+			textPane.getDocument().insertString(textPane.getCaretPosition(), text, style);
+		}
+		catch (BadLocationException e)
+		{
+			e.printStackTrace();
+		}
+		flush(text);		// save to disk log file
 		
 		// make sure the frame visibility state is correct.
 		if (frame.isVisible() != visible)
@@ -305,20 +359,60 @@ public class Logger
 	 * 
 	 * @return the time stamp
 	 */
-	public static String getTimeStamp()
+	private static String getTimeStamp()
 	{
 		return DateFormat.getDateTimeInstance().format(new Date());
 	}
 	
 	/**
-	 * Create the file-name time stamp from the system's date and time.
+	 * Forms and returns the style as an {@link AttributeSet} to be used with {@link JTextPane}.<br />
+	 * <br />
+	 * Credit: Philip Isenhour (<a href="http://javatechniques.com/blog/setting-jtextpane-font-and-color/">link</a>)
 	 * 
-	 * @return the file stamp
+	 * @param size
+	 *            Size, -1 for default.
+	 * @param styles
+	 *            Styles from {@link Styles}.
+	 * @param colour
+	 *            Colour, null for default.
+	 * @return the style
 	 */
-	public static String getFileStamp()
+	private static AttributeSet getStyle(int size, Styles styles, Color colour)
 	{
-		return (new SimpleDateFormat("yyyy-MM-dd_HH-mm-ss")).format(new Date());
+		// Start with the current input attributes for the JTextPane. This
+		// should ensure that we do not wipe out any existing attributes
+		// (such as alignment or other paragraph attributes) currently
+		// set on the text area.
+		MutableAttributeSet attributes = textPane.getInputAttributes();
+		
+		Font font = new Font("Verdana"
+				, ((styles == Styles.BOLD) ? Font.BOLD : 0)
+						+ ((styles == Styles.ITALIC) ? Font.ITALIC : 0)
+						+ ((styles == Styles.BOLDITALIC) ? Font.ITALIC + Font.BOLD : 0)
+				, (size == -1) ? 12 : size);
+		
+		// Set the font family, size, and style, based on properties of
+		// the Font object. Note that JTextPane supports a number of
+		// character attributes beyond those supported by the Font class.
+		// For example, underline, strike-through, super- and sub-script.
+		StyleConstants.setFontFamily(attributes, font.getFamily());
+		StyleConstants.setFontSize(attributes, font.getSize());
+		StyleConstants.setItalic(attributes, (font.getStyle() & Font.ITALIC) != 0);
+		StyleConstants.setBold(attributes, (font.getStyle() & Font.BOLD) != 0);
+		
+		// Set the font colour
+		StyleConstants.setForeground(attributes, (colour == null) ? Color.BLACK : colour);
+		
+		return attributes;
 	}
+	
+	// ======================================================================================
+	// #endregion Text methods.
+	// //////////////////////////////////////////////////////////////////////////////////////
+	
+	// //////////////////////////////////////////////////////////////////////////////////////
+	// #region File methods.
+	// ======================================================================================
 	
 	/**
 	 * Create a new log file using the current date and time.
@@ -333,7 +427,7 @@ public class Logger
 			stream = Files.newOutputStream(logFile, StandardOpenOption.APPEND);
 			writer = new OutputStreamWriter(stream);
 			
-			post("Created a log file at " + logFile.toAbsolutePath());
+			info("Created a log file at " + logFile.toAbsolutePath());
 		}
 		catch (IOException e)
 		{	// oops, don't bother with a log file for this session!
@@ -343,8 +437,18 @@ public class Logger
 			stream = null;
 			logFile = null;
 			
-			post("Failed to create log file!");
+			error("failed to create log file!");
 		}
+	}
+	
+	/**
+	 * Create the file-name time stamp from the system's date and time.
+	 * 
+	 * @return the file stamp
+	 */
+	public static String getFileStamp()
+	{
+		return (new SimpleDateFormat("yyyy-MM-dd_HH-mm-ss")).format(new Date());
 	}
 	
 	/**
@@ -368,6 +472,12 @@ public class Logger
 		{
 			e.printStackTrace();
 			System.err.println("ERROR: Failed to write to log file!");
+			error("failed to write to log file!");
 		}
 	}
+	
+	// ======================================================================================
+	// #endregion File methods.
+	// //////////////////////////////////////////////////////////////////////////////////////
+	
 }
