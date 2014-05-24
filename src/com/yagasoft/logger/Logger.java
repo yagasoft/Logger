@@ -78,13 +78,18 @@ public class Logger
 	private static OutputStreamWriter	writer;
 
 	/** Logger window frame. */
-	private static JFrame				frame		= initFrame();
+	private static JFrame				frame;
 
 	/** Logger content pane. */
-	private static JPanel				contentPane	= initPanel();
+	private static JPanel				contentPane;
 
 	/** Logger text pane. */
-	private static JTextPane			textPane	= initLog();
+	private static JTextPane			textPane;
+
+	static
+	{
+		initLogger();
+	}
 
 	/**
 	 * Styles passed to {@link Logger#getStyle(int, Styles, Color)}.
@@ -129,19 +134,24 @@ public class Logger
 	// #region Initialisation.
 	// ======================================================================================
 
+	private static void initLogger()
+	{
+		// post something and create a log file for this session.
+		newLogFile();
+		info("!!! NEW LOG !!!");
+	}
+
 	/**
 	 * Inits the frame.
 	 *
 	 * @return the frame
 	 */
-	private static JFrame initFrame()
+	private static void initFrame()
 	{
 		frame = new JFrame("Logger window");
 		frame.setDefaultCloseOperation(WindowConstants.HIDE_ON_CLOSE);
 		frame.setBounds(25, 25, 800, 512);
 		frame.setVisible(visible);
-
-		return frame;
 	}
 
 	/**
@@ -149,7 +159,7 @@ public class Logger
 	 *
 	 * @return the panel
 	 */
-	private static JPanel initPanel()
+	private static void initPanel()
 	{
 		contentPane = new JPanel();
 		contentPane.setBorder(new EmptyBorder(5, 5, 5, 5));
@@ -157,8 +167,6 @@ public class Logger
 
 		frame.setContentPane(contentPane);
 		frame.revalidate();
-
-		return contentPane;
 	}
 
 	/**
@@ -166,7 +174,7 @@ public class Logger
 	 *
 	 * @return the text area
 	 */
-	private static JTextPane initLog()
+	private static void initLog()
 	{
 		// no-wrapping hint credit: Rob Camick (http://tips4java.wordpress.com/2009/01/25/no-wrap-text-pane/)
 		textPane = new JTextPane()
@@ -192,12 +200,6 @@ public class Logger
 
 		contentPane.add(scroller);
 		frame.revalidate();
-
-		// post something and create a log file for this session.
-		info("!!! NEW LOG !!!");
-		newLogFile();
-
-		return textPane;
 	}
 
 	// ======================================================================================
@@ -213,6 +215,13 @@ public class Logger
 	 */
 	public static synchronized void showLogger()
 	{
+		if (textPane == null)
+		{
+			initFrame();
+			initPanel();
+			initLog();
+		}
+
 		visible = true;
 		frame.setVisible(visible);
 	}
@@ -397,7 +406,11 @@ public class Logger
 	{
 		try
 		{
-			textPane.getDocument().insertString(textPane.getCaretPosition(), text, style);
+			// if nothing is displayed, don't append to anything.
+			if (textPane != null)
+			{
+				textPane.getDocument().insertString(textPane.getCaretPosition(), text, style);
+			}
 		}
 		catch (BadLocationException e)
 		{
@@ -407,7 +420,8 @@ public class Logger
 		flush(text);		// save to disk log file
 
 		// make sure the frame visibility state is correct.
-		if (frame.isVisible() != visible)
+		// calling 'setVisible' directly every time causes focus stealing annoyance.
+		if (frame != null && (frame.isVisible() != visible))
 		{
 			frame.setVisible(visible);
 		}
@@ -478,6 +492,12 @@ public class Logger
 	 */
 	private static AttributeSet getStyle(int size, Styles styles, Color colour)
 	{
+		// if nothing is displayed, then no style is needed.
+		if (textPane == null)
+		{
+			return null;
+		}
+
 		// Start with the current input attributes for the JTextPane. This
 		// should ensure that we do not wipe out any existing attributes
 		// (such as alignment or other paragraph attributes) currently
