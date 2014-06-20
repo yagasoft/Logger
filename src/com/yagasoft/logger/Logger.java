@@ -591,7 +591,7 @@ public class Logger
 		{
 			e.printStackTrace();
 			System.err.println("ERROR: Failed to write to log file!");
-			error("failed to write to log file!");
+//			error("failed to write to log file!");
 		}
 	}
 
