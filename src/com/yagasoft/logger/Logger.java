@@ -1,4 +1,4 @@
-/*
+/* 
  * Copyright (C) 2011-2014 by Ahmed Osama el-Sawalhy
  * 
  *		The Modified MIT Licence (GPL v3 compatible)
@@ -6,7 +6,7 @@
  * 
  *		Project/File: Logger/com.yagasoft.logger/Logger.java
  * 
- *			Modified: 23-Jul-2014 (01:29:06)
+ *			Modified: 23-Jul-2014 (02:07:16)
  *			   Using: Eclipse J-EE / JDK 8 / Windows 8.1 x64
  */
 
@@ -58,7 +58,7 @@ public class Logger
 	// please, don't change the order of the fields.
 	
 	/** Constant: VERSION. */
-	public static final String			VERSION		= "3.02.005";
+	public static final String			VERSION		= "4.01.015";
 	
 	private static boolean				visible		= false;
 	
@@ -232,8 +232,11 @@ public class Logger
 	 *
 	 * @param entry
 	 *            Entry.
+	 * @param coloursToUse
+	 *            Number of colours to use, excluding black (current max is 7), optional.
+	 *            Anything outside 0..max results in max.
 	 */
-	public static synchronized void info(String entry)
+	public static synchronized void info(String entry, int... coloursToUse)
 	{
 		// write the time stamp, then the entry next to it.
 		
@@ -241,22 +244,62 @@ public class Logger
 		postTimeStamp();
 		
 		// line label
-		AttributeSet style = getStyle( -1, Style.ITALIC, GREEN);
+		AttributeSet style = getStyle(0, Style.ITALIC, GREEN);
 		append("Info:   ", style);
 		
+		// append the entries on new lines using number of colours passed.
+		postEntry(entry, coloursToUse);
+	}
+	
+	/**
+	 * Informing log entries. This will be posted one after the other in the same time-stamp.
+	 * You can use '`' character as to wrap words to be coloured. Colouring will cycle between colours.
+	 *
+	 * @param coloursToUse
+	 *            Number of colours to use, excluding black (current max is 7). Pass '-1' for max colours.
+	 * @param entries
+	 *            List of entries to post.
+	 */
+	public static synchronized void info(int coloursToUse, String... entries)
+	{
+		// write the time stamp
+		postTimeStamp();
+		
+		// entry label.
+		AttributeSet style = getStyle(0, Style.ITALIC, new Color(0, 150, 0));
+		append("Info:\n", style);
+		
+		// append the entry using number of colours passed.
+		for (String entry : entries)
+		{
+			postEntry(entry, coloursToUse);
+		}
+	}
+	
+	// this method is the common process of posting entries for the two methods above.
+	private static synchronized void postEntry(String entry, int... coloursToUse)
+	{
 		// split the entry into sections based on the delimiter '`'
 		String[] entries = entry.split("`");
 		
-		// odd entries are the ones needing colour
+		// calculate number of colours to use. If within range, use, else, use max.
+		int numberOfColours =
+				((coloursToUse.length > 0) && (coloursToUse[0] >= 0) && (coloursToUse[0] <= colours.length))
+						? coloursToUse[0] : colours.length;
+		
+		AttributeSet style = getStyle( -1, Style.PLAIN);
+		
+		// iterate over entry sections
 		for (int i = 0; i < entries.length; i++)
 		{
 			// reset style
 			style = getStyle( -1, Style.PLAIN);
 			
-			if ((i % 2) == 1)
+			// odd entries are the ones needing colour
+			if ((i % 2) == 1 && numberOfColours > 0)
 			{
 				// post escaped entry using a different colour.
-				style = getStyle( -1, Style.PLAIN, colours[(i - 1) % colours.length]);
+				style = getStyle( -1, Style.PLAIN, colours[(i / 2) % numberOfColours]);
 			}
 			
 			// add to log
@@ -269,52 +312,6 @@ public class Logger
 	}
 	
 	/**
-	 * Informing log entries. This will be posted one after the other in the same time-stamp.
-	 * You can use '`' character as to wrap words to be coloured. Colouring will cycle between 7 colours.
-	 *
-	 * @param entries
-	 *            Entries.
-	 */
-	public static synchronized void info(String... entries)
-	{
-		// write the time stamp, then the entry next to it.
-		
-		postTimeStamp();
-		
-		AttributeSet style = getStyle( -1, Style.ITALIC, new Color(0, 150, 0));
-		append("Info:\n", style);
-		
-		// post entries
-		style = getStyle( -1, Style.PLAIN);
-		
-		for (String entry : entries)
-		{
-			// split the entry into sections based on the delimiter '`'
-			String[] subEntries = entry.split("`");
-			
-			// odd entries are the ones needing colour
-			for (int i = 0; i < subEntries.length; i++)
-			{
-				// reset style
-				style = getStyle( -1, Style.PLAIN);
-				
-				if ((i % 2) == 1)
-				{
-					// post escaped entry using a different colour.
-					style = getStyle( -1, Style.PLAIN, colours[(i - 1) % colours.length]);
-				}
-				
-				// add to log
-				append(subEntries[i], style);
-			}
-			
-			// add a new line
-			style = getStyle( -1, Style.PLAIN);
-			append("\n", style);
-		}
-	}
-	
-	/**
 	 * Error log entry. You can use '`' character as to wrap words to be coloured black.
 	 *
 	 * @param entry
@@ -322,15 +319,47 @@ public class Logger
 	 */
 	public static synchronized void error(String entry)
 	{
-		// write the time stamp, then the error next to it.
-		
+		// write the time stamp
 		postTimeStamp();
 		
-		AttributeSet style = getStyle( -1, Style.BOLDITALIC, Color.RED);
+		// append line label
+		AttributeSet style = getStyle(0, Style.BOLDITALIC, Color.RED);
 		append("!! ERROR >>   ", style);
 		
+		// append the error
+		postError(entry);
+	}
+	
+	/**
+	 * Error log entry. This will be posted one after the other in the same time-stamp.
+	 * You can use '`' character as to wrap words to be coloured black.
+	 *
+	 * @param entries
+	 *            Entries.
+	 */
+	public static synchronized void errors(String... entries)
+	{
+		// write the time stamp
+		postTimeStamp();
+		
+		// append line label
+		AttributeSet style = getStyle(0, Style.BOLDITALIC, Color.RED);
+		append("!! ERRORS !!\n", style);
+		
+		// append the errors on new lines
+		for (String entry : entries)
+		{
+			postError(entry);
+		}
+	}
+	
+	// this method is the common process of posting entries for the two methods above.
+	private static synchronized void postError(String entry)
+	{
 		// split the entry into sections based on the delimiter '`'
 		String[] entries = entry.split("`");
+		
+		AttributeSet style = getStyle( -1, Style.PLAIN, Color.RED);
 		
 		// odd entries are the ones needing colour
 		for (int i = 0; i < entries.length; i++)
@@ -354,51 +383,6 @@ public class Logger
 	}
 	
 	/**
-	 * Error log entry. This will be posted one after the other in the same time-stamp.
-	 * You can use '`' character as to wrap words to be coloured black.
-	 *
-	 * @param entries
-	 *            Entries.
-	 */
-	public static synchronized void errors(String... entries)
-	{
-		// write the time stamp, then the error next to it.
-		
-		postTimeStamp();
-		
-		AttributeSet style = getStyle( -1, Style.BOLDITALIC, Color.RED);
-		append("!! ERRORS !!\n", style);
-		
-		style = getStyle( -1, Style.PLAIN, Color.RED);
-		
-		for (String entry : entries)
-		{
-			// split the entry into sections based on the delimiter '`'
-			String[] subEntries = entry.split("`");
-			
-			// odd entries are the ones needing colour
-			for (int i = 0; i < subEntries.length; i++)
-			{
-				// reset style
-				style = getStyle( -1, Style.PLAIN, Color.RED);
-				
-				if ((i % 2) == 1)
-				{
-					// post escaped entry using a different colour.
-					style = getStyle( -1, Style.PLAIN);
-				}
-				
-				// add to log
-				append(subEntries[i], style);
-			}
-			
-			// add a new line
-			style = getStyle( -1, Style.PLAIN);
-			append("\n", style);
-		}
-	}
-	
-	/**
 	 * Exception log entry.
 	 *
 	 * @param exception
@@ -410,7 +394,7 @@ public class Logger
 		
 		postTimeStamp();
 		
-		AttributeSet style = getStyle( -1, Style.BOLDITALIC, Color.RED);
+		AttributeSet style = getStyle(0, Style.BOLDITALIC, Color.RED);
 		append("!! EXCEPTION !!\n", style);
 		
 		// define how to handle the character in the stack trace.
@@ -429,7 +413,7 @@ public class Logger
 			@Override
 			public void flush() throws IOException
 			{
-				AttributeSet styleTemp = getStyle( -1, Style.PLAIN, Color.RED);
+				AttributeSet styleTemp = getStyle(0, Style.PLAIN, Color.RED);
 				
 				for (String line : lines)
 				{
@@ -490,7 +474,7 @@ public class Logger
 //		postDateIfChanged();
 		
 		// post date in light colour because it's repeated too much, so it becomes distracting.
-		AttributeSet style = getStyle( -1, Style.PLAIN, new Color(180, 180, 180));
+		AttributeSet style = getStyle(0, Style.PLAIN, new Color(180, 180, 180));
 		append(getDate() + " ", style);
 		
 		// post time in black.
@@ -659,7 +643,7 @@ public class Logger
 		
 		except(new Exception("Test!"));
 		
-		info(new String[] { "tte `te` te `te` st", "te `st` tt", "final test `tt` ette `te` t" });
+		info( -1, new String[] { "tte `te` te `te` st", "te `st` tt", "final test `tt` ette `te` t" });
 		errors(new String[] { "te `st` tt", "t `te` te `tete` st", "fi `nal te` st" });
 		
 		// must stop process manually.
