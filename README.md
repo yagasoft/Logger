@@ -1,4 +1,4 @@
-Logger v5.01.065
+Logger v5.02.090
 ================
 
 A simple and stylised GUI logger that saves its entries to a log file in real time.
@@ -9,6 +9,7 @@ A simple and stylised GUI logger that saves its entries to a log file in real ti
   + Flush entries to the file automatically
   + Key text is stylised
   + Wrap words in '`' character to colour them
+	+ Post sequence of coloured strings, whether passed separate or in the same string.
   + Parses exceptions
   + Export log to HTML or text file
   + Auto scrolling stops when manually scrolling, and resumes when scrolled to bottom again

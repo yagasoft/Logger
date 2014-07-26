@@ -6,12 +6,16 @@
  *
  *		Project/File: Logger/com.yagasoft.logger/Logger.java
  *
- *			Modified: 26-Jul-2014 (04:57:46)
+ *			Modified: 26-Jul-2014 (05:24:36)
  *			   Using: Eclipse J-EE / JDK 8 / Windows 8.1 x64
  */
 
 package com.yagasoft.logger;
 
+
+import static com.yagasoft.logger.Logger.SequenceOption.BLACK_LAST_STRING;
+import static com.yagasoft.logger.Logger.SequenceOption.COLOUR_LAST_STRING;
+import static com.yagasoft.logger.Logger.SequenceOption.REMOVE_SEPARATOR;
 
 import java.awt.Color;
 import java.awt.Font;
@@ -60,7 +64,7 @@ public class Logger
 	// please, don't change the order of the fields.
 
 	/** Constant: VERSION. */
-	public static final String		VERSION			= "5.01.065";
+	public static final String		VERSION			= "5.02.090";
 
 	/** set when the log is accessible and ready. */
 	public static boolean			initialised		= false;
@@ -142,6 +146,25 @@ public class Logger
 		BOLD,
 		ITALIC,
 		BOLDITALIC
+	}
+
+	/**
+	 * Options for {@link Logger#infoColouredSequence(int, String, String, SequenceOption...)}
+	 */
+	public static enum SequenceOption
+	{
+
+		/** Remove separator after using it to split the string. */
+		REMOVE_SEPARATOR,
+
+		/** Black-coloured last string. */
+		BLACK_LAST_STRING,
+
+		/** Colour the last string. */
+		COLOUR_LAST_STRING,
+
+		/** No option! */
+		NONE
 	}
 
 	//======================================================================================
@@ -328,7 +351,7 @@ public class Logger
 	}
 
 	/**
-	 * Post strings, coloured using the max number of colours, and separated by the default set separator.
+	 * Post strings, coloured using the max number of colours, and separated (added to entry) by the default set separator.
 	 * It doesn't colour the last string as black.
 	 *
 	 * @param strings
@@ -340,7 +363,7 @@ public class Logger
 	}
 
 	/**
-	 * Post strings, coloured using the number of colours passed, and separated by the default set separator.
+	 * Post strings, coloured using the number of colours passed, and separated (added to entry) by the default set separator.
 	 *
 	 * @param coloursToUse
 	 *            Colours to use, -1 for max.
@@ -355,7 +378,7 @@ public class Logger
 	}
 
 	/**
-	 * Post strings, coloured using the max number of colours, and separated by the passed separator.
+	 * Post strings, coloured using the max number of colours, and separated (added to entry) by the passed separator.
 	 * It doesn't colour the last string as black.
 	 *
 	 * @param separator
@@ -369,9 +392,7 @@ public class Logger
 	}
 
 	/**
-	 * <p>
-	 * Post strings, coloured using the number of colours passed, and separated by the passed separator.
-	 * </p>
+	 * Post strings, coloured using the number of colours passed, and separated (added to entry) by the passed separator.
 	 *
 	 * @param coloursToUse
 	 *            Colours to use, -1 for max.
@@ -410,16 +431,21 @@ public class Logger
 	}
 
 	/**
-	 * Post this string using {@link #infoColouredSeparator(String, String...)} after splitting it using the separator passed.
+	 * Post this string using {@link #infoColouredSequence(int, String, String, SequenceOption...)} after splitting it using
+	 * the separator passed. It forwards the {@link #defaultNumberOfColours}.
 	 *
 	 * @param separator
 	 *            Separator.
 	 * @param string
 	 *            String.
+	 * @param options
+	 *            Options list accepts 'removal of separator' (default false), 'colour last string',
+	 *            and 'black last string' flags.
+	 *            The defaults {@link #defaultBlackLastString} for latter two if neither is passed.
 	 */
-	public static synchronized void infoColouredSequence(String separator, String string)
+	public static synchronized void infoColouredSequence(String separator, String string, SequenceOption... options)
 	{
-		infoColouredSeparator(separator, string.split(separator));
+		infoColouredSequence(defaultNumberOfColours, separator, string, options);
 	}
 
 	/**
@@ -428,17 +454,23 @@ public class Logger
 	 *
 	 * @param coloursToUse
 	 *            Colours to use, -1 for max.
-	 * @param blackLastString
-	 *            Black last string?
 	 * @param separator
 	 *            Separator.
 	 * @param string
 	 *            String.
+	 * @param optionsList
+	 *            Options list accepts 'removal of separator' (default false), 'colour last string',
+	 *            and 'black last string' flags.
+	 *            The defaults {@link #defaultBlackLastString} for latter two if neither is passed.
 	 */
-	public static synchronized void infoColouredSequence(int coloursToUse, boolean blackLastString
-			, String separator, String string)
+	public static synchronized void infoColouredSequence(int coloursToUse, String separator, String string
+			, SequenceOption... optionsList)
 	{
-		infoColouredSeparator(coloursToUse, blackLastString, separator, string.split(separator));
+		List<SequenceOption> options = Arrays.asList(optionsList);
+		infoColouredSeparator(coloursToUse
+				, options.contains(BLACK_LAST_STRING)
+						? true : (options.contains(COLOUR_LAST_STRING) ? false : defaultBlackLastString)
+				, options.contains(REMOVE_SEPARATOR) ? "" : separator, string.split(separator));
 	}
 
 	// #endregion Info posting.
@@ -1122,7 +1154,9 @@ public class Logger
 				"teeeeeeest"
 				, "teeeeeeest", "teeeeeeest", "teeeeeeest", "teeeeeeest");
 
-		infoColouredSequence(3, true, "------>", "asklajdlas------>skladjasldk------>asdjslad------>ksajfjjlfa------>asdadjkl");
+		infoColouredSequence( -1, "------>"
+				, "asklajdlas------>skladjasldk------>asdjslad------>ksajfjjlfa------>asdadjkl------>askdjasd"
+				, COLOUR_LAST_STRING, REMOVE_SEPARATOR);
 //		clearLog();
 
 		info( -1, new String[] { "tte `te` te `te` st", "te `st` tt", "final test `tt` ette `te` t" });
