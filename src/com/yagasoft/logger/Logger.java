@@ -6,7 +6,7 @@
  *
  *		Project/File: Logger/com.yagasoft.logger/Logger.java
  *
- *			Modified: 26-Jul-2014 (05:24:36)
+ *			Modified: 26-Jul-2014 (15:55:29)
  *			   Using: Eclipse J-EE / JDK 8 / Windows 8.1 x64
  */
 
@@ -38,8 +38,10 @@ import java.util.List;
 import java.util.concurrent.Semaphore;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 import javax.swing.JFileChooser;
+import javax.swing.JOptionPane;
 import javax.swing.JTextPane;
 import javax.swing.text.AttributeSet;
 import javax.swing.text.BadLocationException;
@@ -614,8 +616,8 @@ public class Logger
 		historyStylised.add(getHTML(entry, style));
 	}
 
-	// reduce the max entries to be within the limit
-	static synchronized void trimLog()
+	/** reduce the max entries to be within the limit */
+	public static synchronized void trimLog()
 	{
 		if (getEntriesNum() > maxEntries)
 		{
@@ -648,7 +650,7 @@ public class Logger
 	{
 		try
 		{
-			String text = GUI.getTextPane().getDocument().getText(0, GUI.getTextPane().getDocument().getLength());
+			String text = GUI.textPane.getDocument().getText(0, GUI.textPane.getDocument().getLength());
 			Pattern pattern = Pattern.compile("\\d{2}/(\\w){3}/\\d{2} \\d{2}:\\d{2}:\\d{2} (AM|PM):");
 			Matcher matcher = pattern.matcher(text);
 
@@ -727,7 +729,7 @@ public class Logger
 	private static AttributeSet getStyle(int size, Style style, Color... colour)
 	{
 		// if nothing is displayed, then no style is needed.
-		if (GUI.getTextPane() == null)
+		if (GUI.textPane == null)
 		{
 			return null;
 		}
@@ -736,13 +738,13 @@ public class Logger
 		// should ensure that we do not wipe out any existing attributes
 		// (such as alignment or other paragraph attributes) currently
 		// set on the text area.
-		MutableAttributeSet attributes = GUI.getTextPane().getInputAttributes();
+		MutableAttributeSet attributes = GUI.textPane.getInputAttributes();
 
 		Font font = new Font(Logger.font
 				, ((style == Style.BOLD) ? Font.BOLD : 0)
 						+ ((style == Style.ITALIC) ? Font.ITALIC : 0)
 						+ ((style == Style.BOLDITALIC) ? Font.ITALIC + Font.BOLD : 0)
-				, (size <= 0) ? getFontSize() : size);
+				, (size <= 0) ? fontSize : size);
 
 		// Set the font family, size, and style, based on properties of
 		// the Font object. Note that JTextPane supports a number of
@@ -756,7 +758,7 @@ public class Logger
 		// Set the font colour, or black by default.
 		StyleConstants.setForeground(attributes, Arrays.stream(colour).findFirst().orElse(Color.BLACK));
 
-		return attributes;
+		return attributes.copyAttributes();
 	}
 
 	// convert text and style to HTML.
@@ -776,11 +778,15 @@ public class Logger
 					, style);
 
 			MutableAttributeSet attributes = conversionPane.getInputAttributes();
-			attributes.removeAttributes(attributes);
-			attributes.addAttribute(StyleConstants.FontSize, 9);
+			attributes.removeAttribute(StyleConstants.FontFamily);
+			attributes.removeAttribute(StyleConstants.FontSize);
+			attributes.removeAttribute(StyleConstants.Italic);
+			attributes.removeAttribute(StyleConstants.Bold);
+			attributes.removeAttribute(StyleConstants.Foreground);
+			attributes.addAttribute(StyleConstants.FontSize, 8);
 
 			conversionPane.getStyledDocument().setCharacterAttributes(0, conversionPane.getDocument().getLength()
-					, attributes, false);
+					, attributes.copyAttributes(), false);
 		}
 		catch (BadLocationException e)
 		{
@@ -799,6 +805,18 @@ public class Logger
 	// ======================================================================================
 	// #endregion Text methods.
 	// //////////////////////////////////////////////////////////////////////////////////////
+
+	/**
+	 * Show message to show.
+	 *
+	 * @param message
+	 *            Message.
+	 */
+	private static void showMessage(String message)
+	{
+		JOptionPane.showMessageDialog(GUI.frame, message, "Infomation."
+				, JOptionPane.INFORMATION_MESSAGE);
+	}
 
 	////////////////////////////////////////////////////////////////////////////////////////
 	// #region Saving.
@@ -824,34 +842,34 @@ public class Logger
 		}
 
 		Path file = chosenFolder.resolve("log_file_-_" + File.getFileStamp() + ".html");
-		Writer writer = null;
 
-		try
+		new Thread(() ->
 		{
-			Files.createFile(file);
-			writer = new OutputStreamWriter(Files.newOutputStream(file));
-			writer.write("<html><body>" + historyStylised.stream().reduce((e1, e2) -> e1 + e2).orElse("") + "</html></body>");
+			try (Writer writer = new OutputStreamWriter(Files.newOutputStream(file)))
+			{
+				try
+				{
+					// this operation takes a LONG time if the log is big enough.
+				showMessage("Saving as HTML to file '" + file + "'. You will be notified when it's done ...");
+
+				writer.write("<html><body>"
+						+ historyStylised.stream().collect(Collectors.toList()).stream()
+								.reduce((e1, e2) -> e1 + e2).orElse("")
+						+ "</html></body>");
+
+				showMessage("Finished saving as HTML to file '" + file + "'.");
+			}
+			catch (Exception e)
+			{
+				e.printStackTrace();
+			}
 		}
 		catch (IOException e)
 		{
 			Logger.except(e);
 			e.printStackTrace();
 		}
-		finally
-		{
-			if (writer != null)
-			{
-				try
-				{
-					writer.close();
-				}
-				catch (IOException e)
-				{
-					e.printStackTrace();
-					Logger.except(e);
-				}
-			}
-		}
+	}	).start();
 	}
 
 	/**
@@ -875,35 +893,26 @@ public class Logger
 
 		// get the full path of the file, using the parent, and a time stamp.
 		Path file = chosenFolder.resolve("log_file_-_" + File.getFileStamp() + ".txt");
-		Writer writer = null;
 
-		try
+		new Thread(() ->
 		{
-			// create an empty file, get a stream to it, and write the history.
-			Files.createFile(file);
-			writer = new OutputStreamWriter(Files.newOutputStream(file));
-			writer.write(history.replace("\r", ""));
-		}
-		catch (IOException e)
-		{
-			Logger.except(e);
-			e.printStackTrace();
-		}
-		finally
-		{
-			if (writer != null)
+			try (Writer writer = new OutputStreamWriter(Files.newOutputStream(file)))
 			{
 				try
 				{
-					writer.close();
+					writer.write(history.replace("\r", ""));
 				}
-				catch (IOException e)
+				catch (Exception e)
 				{
 					e.printStackTrace();
-					Logger.except(e);
 				}
 			}
-		}
+			catch (IOException e)
+			{
+				Logger.except(e);
+				e.printStackTrace();
+			}
+		}).start();
 	}
 
 	/**
@@ -923,7 +932,7 @@ public class Logger
 		chooser.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY);
 
 		// show dialogue
-		int result = chooser.showOpenDialog(GUI.getFrame());
+		int result = chooser.showOpenDialog(GUI.frame);
 		java.io.File selectedFolder = chooser.getSelectedFile();
 
 		// if a folder was not chosen ...
@@ -1003,26 +1012,6 @@ public class Logger
 	//======================================================================================
 
 	/**
-	 * Gets the current log file.
-	 *
-	 * @return the current log file
-	 */
-	public static Path getCurrentLogFile()
-	{
-		return File.logFile;
-	}
-
-	/**
-	 * Gets the max entries.
-	 *
-	 * @return the maxEntries
-	 */
-	public static int getMaxEntries()
-	{
-		return maxEntries;
-	}
-
-	/**
 	 * Sets the max entries.
 	 *
 	 * @param maxEntries
@@ -1043,7 +1032,7 @@ public class Logger
 
 			int count = 0;
 
-			String text = GUI.getTextPane().getDocument().getText(0, GUI.getTextPane().getDocument().getLength());
+			String text = GUI.textPane.getDocument().getText(0, GUI.textPane.getDocument().getLength());
 			Pattern pattern = Pattern.compile("\\d{2}/(\\w){3}/\\d{2} \\d{2}:\\d{2}:\\d{2} (AM|PM):");
 			Matcher matcher = pattern.matcher(text);
 
@@ -1064,13 +1053,13 @@ public class Logger
 	}
 
 	/**
-	 * Gets the font size.
+	 * Gets the max entries.
 	 *
-	 * @return the fontSize
+	 * @return the max entries
 	 */
-	public static int getFontSize()
+	public static int getMaxEntries()
 	{
-		return fontSize;
+		return maxEntries;
 	}
 
 	/**
@@ -1092,12 +1081,23 @@ public class Logger
 		{
 			Logger.SLOTS.acquire();
 
-			MutableAttributeSet attributes = GUI.getTextPane().getInputAttributes();
-			attributes.removeAttributes(attributes);
+			MutableAttributeSet attributes = GUI.textPane.getInputAttributes();
+			attributes.removeAttribute(StyleConstants.FontFamily);
+			attributes.removeAttribute(StyleConstants.FontSize);
+			attributes.removeAttribute(StyleConstants.Italic);
+			attributes.removeAttribute(StyleConstants.Bold);
+			attributes.removeAttribute(StyleConstants.Foreground);
 			attributes.addAttribute(StyleConstants.FontSize, fontSize);
 
-			GUI.getTextPane().getStyledDocument().setCharacterAttributes(0, GUI.getTextPane().getDocument().getLength()
-					, attributes, false);
+			GUI.textPane.getStyledDocument().setCharacterAttributes(0, GUI.textPane.getDocument().getLength()
+					, attributes.copyAttributes(), false);
+
+			// scroll to bottom
+			if (GUI.scroller != null)
+			{
+				GUI.frame.revalidate();
+				GUI.scroller.getVerticalScrollBar().setValue(GUI.scroller.getVerticalScrollBar().getMaximum());
+			}
 		}
 		catch (InterruptedException e)
 		{
@@ -1107,121 +1107,24 @@ public class Logger
 		{
 			Logger.SLOTS.release();
 		}
+	}
 
+	/**
+	 * Gets the font size.
+	 *
+	 * @return the font size
+	 */
+	public static int getFontSize()
+	{
+		return fontSize;
 	}
 
 	//======================================================================================
 	// #endregion Getters and setters.
 	////////////////////////////////////////////////////////////////////////////////////////
 
-	////////////////////////////////////////////////////////////////////////////////////////
-	// #region Extras.
-	//======================================================================================
-
 	// static class!
 	private Logger()
 	{}
-
-	// tester method
-	@SuppressWarnings("all")
-	public static void main(String[] args)
-	{
-		initAndShowLogger(" <---~~---> ", 3, true);
-
-//		info("TEST1!!!");
-//		error("TEST2!!!");
-//
-//		hideLogger();
-//
-//		error("TEST3!!!");
-//		info("TEST4!!!");
-//
-//		showLogger();
-
-		info("teeeeeeeeest `teeeeeeeeeest` `teeeeeeeeest` `teseeeeeeeeeet` `teeeeeeeeeeest`"
-				+ " `teeeeeeeeeeeeest` `teeeeeeeeest` `teeeeeeeeeest` `teeeeeeeeest` `teeeeeeeeeeeest` `teeeeeeeeeeeest`"
-				+ " `teeeeeeeeeest` `teeeeeeeeeeeeeeeeeest`");
-		info("teeeeeeeeest `teeeeeeeeeest` `teeeeeeeeest` `teseeeeeeeeeet` `teeeeeeeeeeest`"
-				+ " `teeeeeeeeeeeeest` `teeeeeeeeest` `teeeeeeeeeest` `teeeeeeeeest` `teeeeeeeeeeeest` `teeeeeeeeeeeest`"
-				+ " `teeeeeeeeeest` `teeeeeeeeeeeeeeeeeest`");
-		info("teeeeeeeeest `teeeeeeeeeest` `teeeeeeeeest` `teseeeeeeeeeet` `teeeeeeeeeeest`"
-				+ " `teeeeeeeeeeeeest` `teeeeeeeeest` `teeeeeeeeeest` `teeeeeeeeest` `teeeeeeeeeeeest` `teeeeeeeeeeeest`"
-				+ " `teeeeeeeeeest` `teeeeeeeeeeeeeeeeeest`");
-
-		error("teeeeeeeeeest `test` `test` `test` `test` test `test` `test` `test` `test` `test` test `test`");
-
-		infoColoured("teeeeeeest", "teeeeeeest", "teeeeeeest", "teeeeeeest", "teeeeeeest", "teeeeeeest",
-				"teeeeeeest"
-				, "teeeeeeest", "teeeeeeest", "teeeeeeest", "teeeeeeest");
-
-		infoColouredSequence( -1, "------>"
-				, "asklajdlas------>skladjasldk------>asdjslad------>ksajfjjlfa------>asdadjkl------>askdjasd"
-				, COLOUR_LAST_STRING, REMOVE_SEPARATOR);
-//		clearLog();
-
-		info( -1, new String[] { "tte `te` te `te` st", "te `st` tt", "final test `tt` ette `te` t" });
-
-		errors(new String[] { "te `st` tt", "t `te` te `tete` st", "fi `nal te` st" });
-
-		except(new Exception("TEST!"));
-
-//		GUI.removeEntries(2);
-
-//		shortHistoryStylised.stream().forEach(System.out::print);
-//		System.out.println(shortHistoryStylised.stream().reduce(String::concat).orElse(""));
-
-//		Pattern pattern = Pattern.compile("\\d{2}/(\\w){3}/\\d{2} \\d{2}:\\d{2}:\\d{2} (AM|PM):");
-//		Matcher matcher;
-//		try
-//		{
-//			matcher = pattern.matcher(GUI.getTextPane().getDocument().getText(0, GUI.getTextPane().getDocument().getLength()));
-//			while(matcher.find())
-//			{
-//				System.out.println(matcher.group() + " -- " + matcher.start() + " -- " + matcher.end());
-//			}
-//		}
-//		catch (BadLocationException e1)
-//		{
-//			e1.printStackTrace();
-//		}
-
-//		GUI.getTextPane().repaint();
-//
-//		info("`test`");
-//		System.out.println(GUI.getTextPane().getText());
-
-		new Thread(() -> {
-			int count = 0;
-
-			while (true)
-			{
-//				GUI.removeEntries(1);
-
-				try
-				{
-					Thread.sleep(2000);
-					info("`Test` >>> `" + count++ + "` <<< `!!!`");
-				}
-				catch (Exception e)
-				{
-					e.printStackTrace();
-				}
-			}
-		}).start();
-
-//		String temp = "<html><body>" + getHistoryStylised().stream().reduce(String::concat).orElse("") + "</body></html>";
-//		System.out.println(temp);
-//		GUI.getTextPane().setText(temp);
-//		GUI.textPane.select(5, 20);
-//		GUI.textPane.setEditable(true);
-//		GUI.textPane.replaceSelection("");
-//		GUI.textPane.setEditable(false);
-//		GUI.textPane.setCaretPosition(GUI.textPane.getDocument().getLength());
-		// must stop process manually.
-	}
-
-	//======================================================================================
-	// #endregion Extras.
-	////////////////////////////////////////////////////////////////////////////////////////
 
 }

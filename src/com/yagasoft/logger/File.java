@@ -21,30 +21,68 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
 import java.text.SimpleDateFormat;
+import java.util.Calendar;
 import java.util.Date;
+import java.util.concurrent.LinkedBlockingQueue;
 
 
 final class File
 {
 
 	/* where the logs will be stored relative to project path. */
-	static final Path			LOGS_FOLDER	= Paths.get(System.getProperty("user.dir") + "/var/logs/");
+	private static final Path					LOGS_FOLDER	= Paths.get(System.getProperty("user.dir") + "/var/logs/");
 
 	/** set when the log is accessible and ready. */
-	public static boolean		initialised	= false;
+	public static boolean						initialised	= false;
 
 	/* current log file path. */
-	static Path					logFile;
+	private static Path							logFile;
 
 	/* stream to log file. */
-	static OutputStream			stream;
+	private static OutputStream					stream;
 
 	/* writer to log file. */
-	static OutputStreamWriter	writer;
+	static OutputStreamWriter			writer;
+
+	private static LinkedBlockingQueue<String>	queue		= new LinkedBlockingQueue<String>();
 
 	static void initFile()
 	{
 		newLogFile();
+
+		new Thread(() ->
+		{
+			// get elapsed time since last physical write to file.
+				long lastFlush = Calendar.getInstance().getTimeInMillis();
+				long currentTime = Calendar.getInstance().getTimeInMillis();
+
+				while (true)
+				{
+					currentTime = Calendar.getInstance().getTimeInMillis();		// compare
+
+					try
+					{
+						// if a file was created and open ...
+						if (writer != null)
+						{
+							writer.write(queue.take().replace("\r", ""));
+
+							if ((currentTime - lastFlush) > 5000)
+							{
+								writer.flush();		// write entry to physical file.
+								lastFlush = Calendar.getInstance().getTimeInMillis();		// reset timer
+							}
+						}
+					}
+					catch (IOException | InterruptedException e)
+					{
+						Logger.initialised = false;
+
+						e.printStackTrace();
+						System.err.println("ERROR: Failed to write to log file!");
+					}
+				}
+			}).start();
 	}
 
 	/* create a new log file using the current date and time for its name. */
@@ -87,7 +125,7 @@ final class File
 	}
 
 	/* flush this text to log file. */
-	static void flush(String text)
+	static void writeToFile(String text)
 	{
 		if ( !Logger.initialised)
 		{
@@ -96,25 +134,11 @@ final class File
 
 		try
 		{
-			// if a file was created and open ...
-			if (writer != null)
-			{
-				Logger.SLOTS.acquire();
-				writer.write(text.replace("\r", ""));
-				writer.flush();		// write entry to physical file immediately; to avoid crash corruption.
-			}
+			queue.put(text);
 		}
-		catch (IOException | InterruptedException e)
+		catch (InterruptedException e)
 		{
-			Logger.initialised = false;
-
 			e.printStackTrace();
-			System.err.println("ERROR: Failed to write to log file!");
-//			error("failed to write to log file!");
-		}
-		finally
-		{
-			Logger.SLOTS.release();
 		}
 	}
 
