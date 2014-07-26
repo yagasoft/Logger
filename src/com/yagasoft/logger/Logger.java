@@ -6,7 +6,7 @@
  *
  *		Project/File: Logger/com.yagasoft.logger/Logger.java
  *
- *			Modified: 25-Jul-2014 (05:36:48)
+ *			Modified: 26-Jul-2014 (04:57:46)
  *			   Using: Eclipse J-EE / JDK 8 / Windows 8.1 x64
  */
 
@@ -98,33 +98,42 @@ public class Logger
 	//======================================================================================
 
 	/* Font size for log window. */
-	private static int			fontSize	= 11;
+	private static int			fontSize					= 11;
 
-	private static final String	font		= "Verdana";
+	private static final String	font						= "Verdana";
 
 	//--------------------------------------------------------------------------------------
 	// #region Colours.
 
 	// a bit lighter than the one from the Color class.
-	private static final Color	BLUE		= new Color(40, 50, 230);
+	private static final Color	BLUE						= new Color(35, 40, 210);
 
-	private static final Color	ORANGE		= new Color(185, 100, 0);
-	private static final Color	LIGHT_BLUE	= new Color(0, 160, 160);
-
-	// a bit darker than the one from the Color class.
-	private static final Color	GREEN		= new Color(0, 150, 0);
-
-	private static final Color	VIOLET		= new Color(150, 0, 255);
-	private static final Color	DARK_RED	= new Color(230, 0, 0);
+	private static final Color	ORANGE						= new Color(170, 90, 0);
+	private static final Color	LIGHT_BLUE					= new Color(0, 150, 150);
 
 	// a bit darker than the one from the Color class.
-	private static final Color	MAGENTA		= new Color(230, 0, 170);
+	private static final Color	GREEN						= new Color(0, 140, 0);
+
+	private static final Color	VIOLET						= new Color(150, 0, 255);
+	private static final Color	DARK_RED					= new Color(230, 0, 0);
+
+	// a bit darker than the one from the Color class.
+	private static final Color	MAGENTA						= new Color(220, 0, 160);
 
 	// colours to cycle through when displaying info with words wrapped in '`'.
-	private static Color[]		colours		= { BLUE, ORANGE, LIGHT_BLUE, GREEN, VIOLET, DARK_RED, MAGENTA };
+	private static Color[]		colours						= { BLUE, ORANGE, LIGHT_BLUE, GREEN, VIOLET, DARK_RED, MAGENTA };
 
 	// #endregion Colours.
 	//--------------------------------------------------------------------------------------
+
+	/** Default number of colours. */
+	public static int			defaultNumberOfColours		= colours.length;
+
+	/** Default coloured strings separator for {@link #infoColoured(String...)}. */
+	public static String		defaultColouringSeparator	= " ";
+
+	/** Default black last string flag for {@link #infoColouredSeparator(String, String...)}. */
+	public static boolean		defaultBlackLastString		= false;
 
 	/* style passed to getStyle method. */
 	private enum Style
@@ -139,16 +148,62 @@ public class Logger
 	// #endregion Style.
 	////////////////////////////////////////////////////////////////////////////////////////
 
-	/** Convenience method. */
+	////////////////////////////////////////////////////////////////////////////////////////
+	// #region Initialisation.
+	//======================================================================================
+
+	/**
+	 * Convenience method for {@link #initAndShowLogger(String, int, boolean)}, using defaults (' ', max, false).
+	 */
 	public static synchronized void initAndShowLogger()
 	{
-		initLogger();
+		initAndShowLogger(defaultColouringSeparator, defaultNumberOfColours, defaultBlackLastString);
+	}
+
+	/**
+	 * Convenience method for {@link #initLogger(String, int, boolean)}.
+	 *
+	 * @param defaultSeparator
+	 *            Default separator.
+	 * @param defaultNumberOfColours
+	 *            Default number of colours.
+	 * @param defaultBlackLastString
+	 *            Default black last string?
+	 */
+	public static synchronized void initAndShowLogger(String defaultSeparator, int defaultNumberOfColours
+			, boolean defaultBlackLastString)
+	{
+		initLogger(defaultSeparator, defaultNumberOfColours, defaultBlackLastString);
 		GUI.showLogger();
 	}
 
-	/** Inits the logger. */
+	/**
+	 * Convenience method for {@link #initLogger(String, int, boolean)}, using defaults (' ', max, false).
+	 */
 	public static synchronized void initLogger()
 	{
+		initLogger(defaultColouringSeparator, defaultNumberOfColours, defaultBlackLastString);
+	}
+
+	/**
+	 * Initialises the logger by loading the options, initialising the log file, and the GUI.
+	 *
+	 * @param defaultSeparator
+	 *            Default separator to use for {@link #infoColoured(String...)}
+	 * @param defaultNumberOfColours
+	 *            Default number of colours to use for {@link #info(String, int...)}
+	 * @param defaultBlackLastString
+	 *            Default black last string to use for {@link #infoColouredSeparator(int, boolean, String, String...)}
+	 */
+	public static synchronized void initLogger(String defaultSeparator, int defaultNumberOfColours
+			, boolean defaultBlackLastString)
+	{
+		// set defaults
+		Logger.defaultColouringSeparator = defaultSeparator;
+		Logger.defaultNumberOfColours = defaultNumberOfColours;
+		Logger.defaultBlackLastString = defaultBlackLastString;
+
+		// initialise logger if it wasn't.
 		if ( !initialised)
 		{
 			loadOptions();
@@ -162,6 +217,10 @@ public class Logger
 			info("!!! `NEW LOG` !!!");
 		}
 	}
+
+	//======================================================================================
+	// #endregion Initialisation.
+	////////////////////////////////////////////////////////////////////////////////////////
 
 	/**
 	 * Show logger window.
@@ -182,6 +241,9 @@ public class Logger
 	// //////////////////////////////////////////////////////////////////////////////////////
 	// #region Public posting interface.
 	// ======================================================================================
+
+	//--------------------------------------------------------------------------------------
+	// #region Info posting.
 
 	/**
 	 * Informing log entry. You can use '`' character as to wrap words to be coloured. Colouring will cycle between 7 colours.
@@ -223,7 +285,7 @@ public class Logger
 
 		// entry label.
 		AttributeSet style = getStyle(0, Style.ITALIC, new Color(0, 150, 0));
-		GUI.append("Info:\n", style);
+		GUI.append("Info ...\n", style);
 
 		// append the entry using number of colours passed.
 		for (String entry : entries)
@@ -238,24 +300,23 @@ public class Logger
 		// split the entry into sections based on the delimiter '`'
 		String[] entries = entry.split("`");
 
-		// calculate number of colours to use. If within range, use, else, use max.
-		int numberOfColours =
-				((coloursToUse.length > 0) && (coloursToUse[0] >= 0) && (coloursToUse[0] <= colours.length))
-						? coloursToUse[0] : colours.length;
+		// calculate number of colours to use. If passed, then use, else if -1 or not passed, then use default.
+		int numberOfColours = Arrays.stream(coloursToUse).findFirst().orElse(defaultNumberOfColours);
+		numberOfColours = (numberOfColours == -1) ? defaultNumberOfColours : numberOfColours;
 
-		AttributeSet style = getStyle( -1, Style.PLAIN);
+		AttributeSet style = getStyle(Style.PLAIN);
 
 		// iterate over entry sections
 		for (int i = 0; i < entries.length; i++)
 		{
 			// reset style
-			style = getStyle( -1, Style.PLAIN);
+			style = getStyle(Style.PLAIN);
 
 			// odd entries are the ones needing colour
 			if (((i % 2) == 1) && (numberOfColours > 0))
 			{
 				// post escaped entry using a different colour.
-				style = getStyle( -1, Style.PLAIN, colours[(i / 2) % numberOfColours]);
+				style = getStyle(Style.PLAIN, colours[(i / 2) % numberOfColours]);
 			}
 
 			// add to log
@@ -265,6 +326,123 @@ public class Logger
 		// add a new line
 		GUI.append("\n", style);
 	}
+
+	/**
+	 * Post strings, coloured using the max number of colours, and separated by the default set separator.
+	 * It doesn't colour the last string as black.
+	 *
+	 * @param strings
+	 *            Strings.
+	 */
+	public static synchronized void infoColoured(String... strings)
+	{
+		infoColouredSeparator(defaultColouringSeparator, strings);
+	}
+
+	/**
+	 * Post strings, coloured using the number of colours passed, and separated by the default set separator.
+	 *
+	 * @param coloursToUse
+	 *            Colours to use, -1 for max.
+	 * @param blackLastString
+	 *            Black last string?
+	 * @param strings
+	 *            Strings.
+	 */
+	public static synchronized void infoColoured(int coloursToUse, boolean blackLastString, String... strings)
+	{
+		infoColouredSeparator(coloursToUse, blackLastString, defaultColouringSeparator, strings);
+	}
+
+	/**
+	 * Post strings, coloured using the max number of colours, and separated by the passed separator.
+	 * It doesn't colour the last string as black.
+	 *
+	 * @param separator
+	 *            Separator.
+	 * @param strings
+	 *            Strings.
+	 */
+	public static synchronized void infoColouredSeparator(String separator, String... strings)
+	{
+		infoColouredSeparator(defaultNumberOfColours, defaultBlackLastString, separator, strings);
+	}
+
+	/**
+	 * <p>
+	 * Post strings, coloured using the number of colours passed, and separated by the passed separator.
+	 * </p>
+	 *
+	 * @param coloursToUse
+	 *            Colours to use, -1 for max.
+	 * @param blackLastString
+	 *            Black last string?
+	 * @param separator
+	 *            Separator.
+	 * @param strings
+	 *            Strings.
+	 */
+	public static synchronized void infoColouredSeparator(int coloursToUse, boolean blackLastString
+			, String separator, String... strings)
+	{
+		if (strings.length == 0)
+		{
+			return;
+		}
+
+		// form the entry
+		// add the first string using the colouring symbol
+		String entry = "`" + strings[0] + "`" + ((strings.length > 2) ? separator : "");
+
+		// add the rest if there are any, except last string
+		for (int i = 1; (i < (strings.length - 1)) && (strings.length > 2); i++)
+		{
+			entry += "`" + strings[i] + "`" + separator;
+		}
+
+		// end with the last string, and if 'black' is specified, then don't wrap it in '`'.
+		if (strings.length > 2)
+		{
+			entry += (blackLastString ? "" : "`") + strings[strings.length - 1] + (blackLastString ? "" : "`");
+		}
+
+		info(entry, coloursToUse);
+	}
+
+	/**
+	 * Post this string using {@link #infoColouredSeparator(String, String...)} after splitting it using the separator passed.
+	 *
+	 * @param separator
+	 *            Separator.
+	 * @param string
+	 *            String.
+	 */
+	public static synchronized void infoColouredSequence(String separator, String string)
+	{
+		infoColouredSeparator(separator, string.split(separator));
+	}
+
+	/**
+	 * Post this string using {@link #infoColouredSeparator(int, boolean, String, String...)} after splitting it using the
+	 * separator passed.
+	 *
+	 * @param coloursToUse
+	 *            Colours to use, -1 for max.
+	 * @param blackLastString
+	 *            Black last string?
+	 * @param separator
+	 *            Separator.
+	 * @param string
+	 *            String.
+	 */
+	public static synchronized void infoColouredSequence(int coloursToUse, boolean blackLastString
+			, String separator, String string)
+	{
+		infoColouredSeparator(coloursToUse, blackLastString, separator, string.split(separator));
+	}
+
+	// #endregion Info posting.
+	//--------------------------------------------------------------------------------------
 
 	/**
 	 * Error log entry. You can use '`' character as to wrap words to be coloured black.
@@ -285,7 +463,7 @@ public class Logger
 		postError(entry);
 
 		// add an extra label.
-		style = getStyle( -1, Style.BOLDITALIC, Color.RED);
+		style = getStyle(Style.BOLDITALIC, Color.RED);
 		GUI.append("   << ERROR !!\n", style);
 
 	}
@@ -319,18 +497,18 @@ public class Logger
 		// split the entry into sections based on the delimiter '`'
 		String[] entries = entry.split("`");
 
-		AttributeSet style = getStyle( -1, Style.PLAIN, Color.RED);
+		AttributeSet style = getStyle(Style.PLAIN, Color.RED);
 
 		// odd entries are the ones needing colour
 		for (int i = 0; i < entries.length; i++)
 		{
 			// reset style
-			style = getStyle( -1, Style.PLAIN, Color.RED);
+			style = getStyle(Style.PLAIN, Color.RED);
 
 			if ((i % 2) == 1)
 			{
 				// post escaped entry using a different colour.
-				style = getStyle( -1, Style.PLAIN);
+				style = getStyle(Style.PLAIN);
 			}
 
 			// add to log
@@ -472,7 +650,7 @@ public class Logger
 		GUI.append(getDate() + " ", style);
 
 		// post time in black.
-		style = getStyle( -1, Style.PLAIN);
+		style = getStyle(Style.PLAIN);
 		GUI.append(getTime() + ": ", style);
 	}
 
@@ -500,6 +678,12 @@ public class Logger
 	private static String getTime()
 	{
 		return new SimpleDateFormat("hh:mm:ss aa").format(new Date());
+	}
+
+	// convenience method
+	private static AttributeSet getStyle(Style style, Color... colour)
+	{
+		return getStyle(fontSize, style, colour);
 	}
 
 	/*
@@ -558,7 +742,7 @@ public class Logger
 					, text.replace("\n", "`new_line`").replace("\t", "`tab`")
 							.replace(" ", "`space`")
 					, style);
-			
+
 			MutableAttributeSet attributes = conversionPane.getInputAttributes();
 			attributes.removeAttributes(attributes);
 			attributes.addAttribute(StyleConstants.FontSize, 9);
@@ -910,7 +1094,7 @@ public class Logger
 	@SuppressWarnings("all")
 	public static void main(String[] args)
 	{
-		initAndShowLogger();
+		initAndShowLogger(" <---~~---> ", 3, true);
 
 //		info("TEST1!!!");
 //		error("TEST2!!!");
@@ -931,12 +1115,20 @@ public class Logger
 		info("teeeeeeeeest `teeeeeeeeeest` `teeeeeeeeest` `teseeeeeeeeeet` `teeeeeeeeeeest`"
 				+ " `teeeeeeeeeeeeest` `teeeeeeeeest` `teeeeeeeeeest` `teeeeeeeeest` `teeeeeeeeeeeest` `teeeeeeeeeeeest`"
 				+ " `teeeeeeeeeest` `teeeeeeeeeeeeeeeeeest`");
+
 		error("teeeeeeeeeest `test` `test` `test` `test` test `test` `test` `test` `test` `test` test `test`");
 
+		infoColoured("teeeeeeest", "teeeeeeest", "teeeeeeest", "teeeeeeest", "teeeeeeest", "teeeeeeest",
+				"teeeeeeest"
+				, "teeeeeeest", "teeeeeeest", "teeeeeeest", "teeeeeeest");
+
+		infoColouredSequence(3, true, "------>", "asklajdlas------>skladjasldk------>asdjslad------>ksajfjjlfa------>asdadjkl");
 //		clearLog();
 
 		info( -1, new String[] { "tte `te` te `te` st", "te `st` tt", "final test `tt` ette `te` t" });
+
 		errors(new String[] { "te `st` tt", "t `te` te `tete` st", "fi `nal te` st" });
+
 		except(new Exception("TEST!"));
 
 //		GUI.removeEntries(2);
