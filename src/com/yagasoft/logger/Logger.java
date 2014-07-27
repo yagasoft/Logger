@@ -62,7 +62,7 @@ public class Logger
 	// please, don't change the order of the fields.
 	
 	/** Constant: VERSION. */
-	public static final String	VERSION					= "5.02.090";
+	public static final String	VERSION					= "5.03.135";
 	
 	/** set when the log is accessible and ready. */
 	public static boolean		initialised				= false;
