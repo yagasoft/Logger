@@ -113,15 +113,15 @@ public class MenuBar extends JMenuBar
 			optionsPanel.setFrame(frame);
 			optionsPanel.addListener(options ->
 			{
-				Logger.setMaxEntries(options.numberOfEntries);
-				Logger.setFontSize(options.fontSize);
+				GUI.setMaxEntries(options.numberOfEntries);
+				GUI.setFontSize(options.fontSize);
 				GUI.setWrap(options.wrap);
 			});
 		});
 		editMenu.add(options);
 
 		clear = new JMenuItem("Clear log");
-		clear.addActionListener(event -> Logger.clearLog());
+		clear.addActionListener(event -> GUI.clearLog());
 		editMenu.add(clear);
 
 		add(editMenu);

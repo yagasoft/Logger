@@ -36,7 +36,7 @@ final class File
 	public static boolean						initialised	= false;
 
 	/* current log file path. */
-	private static Path							logFile;
+	static Path							logFile;
 
 	/* stream to log file. */
 	private static OutputStream					stream;
@@ -46,7 +46,7 @@ final class File
 
 	private static LinkedBlockingQueue<String>	queue		= new LinkedBlockingQueue<String>();
 
-	static void initFile()
+	static synchronized void initFile()
 	{
 		newLogFile();
 

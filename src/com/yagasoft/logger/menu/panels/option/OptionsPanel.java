@@ -32,7 +32,6 @@ import javax.swing.JPanel;
 import javax.swing.JTextField;
 
 import com.yagasoft.logger.GUI;
-import com.yagasoft.logger.Logger;
 
 
 /**
@@ -108,7 +107,7 @@ public class OptionsPanel extends JPanel implements ActionListener
 		panelOptionsList.add(labelNumEntries, labelNumEntriesGridBagConstraints);
 		//
 		textFieldNumEntries = new JTextField();
-		textFieldNumEntries.setText(Logger.getMaxEntries() + "");
+		textFieldNumEntries.setText(GUI.getMaxEntries() + "");
 		GridBagConstraints textFieldNumEntries_GridBagConstraints = new GridBagConstraints();
 		textFieldNumEntries_GridBagConstraints.insets = new Insets(0, 0, 5, 0);
 		textFieldNumEntries_GridBagConstraints.fill = GridBagConstraints.HORIZONTAL;
@@ -126,7 +125,7 @@ public class OptionsPanel extends JPanel implements ActionListener
 		panelOptionsList.add(labelFontSize, labelFontSizeGridBagConstraints);
 		//
 		textFieldFontSize = new JTextField();
-		textFieldFontSize.setText(Logger.getFontSize() + "");
+		textFieldFontSize.setText(GUI.getFontSize() + "");
 		GridBagConstraints textFieldFontSizeGridBagConstraints = new GridBagConstraints();
 		textFieldFontSizeGridBagConstraints.insets = new Insets(0, 0, 5, 0);
 		textFieldFontSizeGridBagConstraints.fill = GridBagConstraints.HORIZONTAL;

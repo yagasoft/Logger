@@ -1,4 +1,4 @@
-Logger v5.02.090
+Logger v5.03.135
 ================
 
 A simple and stylised GUI logger that saves its entries to a log file in real time.
@@ -6,7 +6,7 @@ A simple and stylised GUI logger that saves its entries to a log file in real ti
 ### Features:
 
   + Creates a log file in the app folder automatically
-  + Flush entries to the file automatically
+  + Flush entries periodically to the file automatically
   + Key text is stylised
   + Wrap words in '`' character to colour them
 	+ Post sequence of coloured strings, whether passed separate or in the same string.
@@ -17,17 +17,17 @@ A simple and stylised GUI logger that saves its entries to a log file in real ti
 	+ Toggle text wrapping
 	+ Adjust text size
 	+ Limit number of entries (only visually -- full log saved to disk)
-	+ Toggle 'hide on close (x)', which minimised to tray on supported platforms
+	+ Toggle 'hide on close (x)', which minimises to tray on supported platforms
 	+ All options are persistent
 
 ### Defaults:
 
   + Logs are stored in '[program_folder]/var/logs/'
-  + Auto log file-names are a time-stamp of when the log started
-  + Auto log files are in plain text
+	+ Auto log file-names are a time-stamp of when the log started
+	+ Auto log files are in plain text
   + Wrapping is off
   + Max entries are 500
-  + Hide on close is on
+  + Hide on close is on. Make sure to check the thread in memory if your OS doesn't support tray icons please.
 
 ### Notes:
 
