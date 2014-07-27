@@ -74,12 +74,7 @@ public class MenuBar extends JMenuBar
 		fileMenu.add(saveAsTxt);
 
 		hide = new JMenuItem("Hide");
-		hide.addActionListener(event ->
-		{
-			GUI.frame.setDefaultCloseOperation(WindowConstants.HIDE_ON_CLOSE);
-			GUI.frame.dispatchEvent(new WindowEvent(GUI.frame, WindowEvent.WINDOW_CLOSING));
-			GUI.frame.setDefaultCloseOperation(GUI.getActionOnClose());
-		});
+		hide.addActionListener(event -> GUI.hideLogger());
 		fileMenu.add(hide);
 
 		exit = new JMenuItem("Exit");

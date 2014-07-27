@@ -1,12 +1,12 @@
 /*
  * Copyright (C) 2011-2014 by Ahmed Osama el-Sawalhy
- *
+ * 
  *		The Modified MIT Licence (GPL v3 compatible)
  * 			Licence terms are in a separate file (LICENCE.md)
- *
- *		Project/File: Logger/com.yagasoft.logger/java
- *
- *			Modified: 26-Jul-2014 (15:30:50)
+ * 
+ *		Project/File: Logger/com.yagasoft.logger/GUI.java
+ * 
+ *			Modified: 28-Jul-2014 (00:13:55)
  *			   Using: Eclipse J-EE / JDK 8 / Windows 8.1 x64
  */
 
@@ -155,7 +155,7 @@ public final class GUI
 			{
 				super.windowIconified(e);
 				
-				if (SystemTray.isSupported())
+				if (SystemTray.isSupported() && isHideOnClose())
 				{
 					hideLogger();
 				}
@@ -165,6 +165,8 @@ public final class GUI
 			public void windowClosing(WindowEvent e)
 			{
 				super.windowClosing(e);
+				
+				// if 'hideOnClose' is false, the application will exit or not based on 'actionOnClose'.
 				hideLogger();
 				
 				try
@@ -303,9 +305,13 @@ public final class GUI
 		frame.setVisible(visible);
 	}
 	
-	static synchronized void hideLogger()
+	/**
+	 * Hide logger. This will try to minimise to tray. The 'minimise' event fired by Swing in general will call this method if
+	 * {@link #hideOnClose} is set.
+	 */
+	public static synchronized void hideLogger()
 	{
-		if ( !initialised || !visible || (actionOnClose == WindowConstants.EXIT_ON_CLOSE))
+		if ( !initialised || !visible)
 		{
 			return;
 		}
