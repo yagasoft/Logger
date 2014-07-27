@@ -15,7 +15,6 @@ package com.yagasoft.logger.menu;
 
 import java.awt.event.WindowEvent;
 
-import javax.swing.JCheckBoxMenuItem;
 import javax.swing.JFrame;
 import javax.swing.JMenu;
 import javax.swing.JMenuBar;
@@ -41,7 +40,6 @@ public class MenuBar extends JMenuBar
 	private JMenuItem			saveAsHTML;
 	private JMenuItem			saveAsTxt;
 	private JMenuItem			hide;
-	private JCheckBoxMenuItem	hideToggle;
 	private JMenuItem			exit;
 
 	private JMenu				editMenu;
@@ -66,7 +64,6 @@ public class MenuBar extends JMenuBar
 	{
 		// build file menu
 		fileMenu = new JMenu("File");
-		fileMenu.addActionListener(event -> hideToggle.setSelected(GUI.getActionOnClose() == WindowConstants.HIDE_ON_CLOSE));
 
 		saveAsHTML = new JMenuItem("Save as HTML ...");
 		saveAsHTML.addActionListener(event -> Logger.saveAsHTML());
@@ -84,12 +81,6 @@ public class MenuBar extends JMenuBar
 			GUI.frame.setDefaultCloseOperation(GUI.getActionOnClose());
 		});
 		fileMenu.add(hide);
-
-		hideToggle = new JCheckBoxMenuItem("Hide on close");
-		hideToggle.setSelected(GUI.getActionOnClose() == WindowConstants.HIDE_ON_CLOSE);
-		hideToggle.addActionListener(event -> GUI.setActionOnClose((GUI.getActionOnClose() == WindowConstants.EXIT_ON_CLOSE)
-				? WindowConstants.HIDE_ON_CLOSE : WindowConstants.EXIT_ON_CLOSE));
-		fileMenu.add(hideToggle);
 
 		exit = new JMenuItem("Exit");
 		exit.addActionListener(event ->
@@ -116,6 +107,8 @@ public class MenuBar extends JMenuBar
 				GUI.setMaxEntries(options.numberOfEntries);
 				GUI.setFontSize(options.fontSize);
 				GUI.setWrap(options.wrap);
+				GUI.setHideOnClose(options.hideOnClose);
+				Logger.saveOptions();
 			});
 		});
 		editMenu.add(options);

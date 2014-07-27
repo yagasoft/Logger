@@ -29,8 +29,6 @@ import java.awt.event.WindowEvent;
 import java.io.IOException;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.LinkedBlockingDeque;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 import javax.swing.ImageIcon;
 import javax.swing.JFrame;
@@ -48,11 +46,6 @@ import javax.swing.text.DefaultCaret;
 import javax.swing.text.Element;
 import javax.swing.text.MutableAttributeSet;
 import javax.swing.text.StyleConstants;
-import javax.swing.text.View;
-import javax.swing.text.ViewFactory;
-import javax.swing.text.html.HTML;
-import javax.swing.text.html.HTMLEditorKit;
-import javax.swing.text.html.InlineView;
 
 import com.yagasoft.logger.menu.MenuBar;
 
@@ -71,15 +64,13 @@ public final class GUI
 	
 	private static boolean								visible					= false;
 	private static int									actionOnClose			= WindowConstants.HIDE_ON_CLOSE;
+	private static boolean								hideOnClose;
 	
 	private static JPanel								contentPane;
 	private static MenuBar								menuBar;
 	private static JScrollPane							scroller;
 	static JTextPane									textPane;
 	private static DefaultCaret							caret;
-	
-	/* Max entries to show in logger. */
-	private static int									entriesNum				= 0;
 	
 	/* Max entries to show in logger. */
 	private static int									maxEntries				= 500;
@@ -98,10 +89,11 @@ public final class GUI
 	private static Image								appIcon					= new ImageIcon(Logger.class
 																						.getResource("images/icon.png"))
 																						.getImage();
-	
+	// queue used to receive text sent.
 	private static LinkedBlockingDeque<String>			textQueue				= new LinkedBlockingDeque<String>();
 	private static LinkedBlockingDeque<AttributeSet>	attributeQueue			= new LinkedBlockingDeque<AttributeSet>();
 	
+	// queue used to cache text sent. It's used temporarily store text until a '\n' is encountered to flush to log.
 	private static LinkedBlockingDeque<String>			secondTextQueue			= new LinkedBlockingDeque<String>();
 	private static LinkedBlockingDeque<AttributeSet>	secondAttributeQueue	= new LinkedBlockingDeque<AttributeSet>();
 	
@@ -150,7 +142,8 @@ public final class GUI
 		frame = new JFrame("Logger window");
 		frame.setDefaultCloseOperation(getActionOnClose());
 		frame.setBounds(25, 25, 800, 512);
-		frame.setVisible(visible);
+		frame.setVisible(true);
+		visible = true;
 		frame.setIconImage(appIcon);
 		
 		// save options and close DB when application is closing.
@@ -161,7 +154,11 @@ public final class GUI
 			public void windowIconified(WindowEvent e)
 			{
 				super.windowIconified(e);
-				hideLogger();
+				
+				if (SystemTray.isSupported())
+				{
+					hideLogger();
+				}
 			}
 			
 			@Override
@@ -202,76 +199,88 @@ public final class GUI
 	/* Inits the log text area. */
 	private static synchronized void initLog()
 	{
-		synchronized (Logger.maxEntriesLock)
+		if (scroller != null)
 		{
-			synchronized (Logger.logAttributesLock)
+			contentPane.remove(scroller);
+		}
+		
+		if (wrap)
+		{
+			textPane = new JTextPane();
+		}
+		else
+		{
+			/*
+			 * Credit: Rob Camick (http://tips4java.wordpress.com/2009/01/25/no-wrap-text-pane/)
+			 */
+			textPane = new JTextPane()
 			{
+				
+				private static final long	serialVersionUID	= 8235187348047035541L;
+				
+				@Override
+				public boolean getScrollableTracksViewportWidth()
+				{
+					return getUI().getPreferredSize(this).width
+					<= getParent().getSize().width;
+				}
+			};
+		}
+		
+		textPane.setEditable(false);
+		caret = (DefaultCaret) textPane.getCaret();
+		caret.setUpdatePolicy(DefaultCaret.NEVER_UPDATE);
+		
+		scroller = new JScrollPane(textPane);
+		scroller.setVerticalScrollBarPolicy(ScrollPaneConstants.VERTICAL_SCROLLBAR_AS_NEEDED);
+		scroller.setHorizontalScrollBarPolicy(ScrollPaneConstants.HORIZONTAL_SCROLLBAR_AS_NEEDED);
+		
+		scroller.getVerticalScrollBar().addMouseListener(new MouseAdapter()
+		{
+			
+			@Override
+			public void mousePressed(MouseEvent e)
+			{
+				super.mousePressed(e);
+				
+				// prevent writing.
+				latch = new CountDownLatch(1);
+				
+				holdingBar = true;
+				autoScroll = false;
+			}
+			
+			@Override
+			public void mouseReleased(MouseEvent e)
+			{
+				super.mouseReleased(e);
+				
+				Rectangle visible;
+				Rectangle bounds;
+				
 				synchronized (Logger.logDocumentWriteLock)
 				{
-					if (scroller != null)
-					{
-						contentPane.remove(scroller);
-					}
-					
-					textPane = new JTextPane();
-					textPane.setEditable(false);
-					textPane.setEditorKit(new WrapControlledEditorKit(wrap));
-					caret = (DefaultCaret) textPane.getCaret();
-					caret.setUpdatePolicy(DefaultCaret.NEVER_UPDATE);
-					
-					scroller = new JScrollPane(textPane);
-					scroller.setVerticalScrollBarPolicy(ScrollPaneConstants.VERTICAL_SCROLLBAR_AS_NEEDED);
-					scroller.setHorizontalScrollBarPolicy(ScrollPaneConstants.HORIZONTAL_SCROLLBAR_AS_NEEDED);
-					
-					scroller.getVerticalScrollBar().addMouseListener(new MouseAdapter()
-					{
-						
-						@Override
-						public void mousePressed(MouseEvent e)
-						{
-							super.mousePressed(e);
-							
-							// prevent writing.
-							latch = new CountDownLatch(1);
-							
-							holdingBar = true;
-							autoScroll = false;
-						}
-						
-						@Override
-						public void mouseReleased(MouseEvent e)
-						{
-							super.mouseReleased(e);
-							
-							Rectangle visible;
-							Rectangle bounds;
-							
-							synchronized (Logger.logDocumentWriteLock)
-							{
-								visible = textPane.getVisibleRect();	// get visible rectangle of the log area
-								bounds = textPane.getBounds();	// get the size of the log area.
-							}
-							
-//				System.out.println(bounds.height - (visible.height + visible.y));
-							
-							// if the visible rectangle is not at the bottom, stop auto scrolling
-							if ((bounds.height - (visible.height + visible.y)) <= 5)
-							{
-								autoScroll = true;
-							}
-							
-							holdingBar = false;
-							
-							// allow writing.
-							latch.countDown();
-						}
-					});
-					
-					contentPane.add(scroller, BorderLayout.CENTER);
-//					frame.revalidate();
+					visible = textPane.getVisibleRect();	// get visible rectangle of the log area
+					bounds = textPane.getBounds();	// get the size of the log area.
 				}
+				
+//				System.out.println(bounds.height - (visible.height + visible.y));
+				
+				// if the visible rectangle is not at the bottom, stop auto scrolling
+				if ((bounds.height - (visible.height + visible.y)) <= 5)
+				{
+					autoScroll = true;
+				}
+				
+				holdingBar = false;
+				
+				// allow writing.
+				latch.countDown();
 			}
-		}
+		});
+		
+		contentPane.add(scroller, BorderLayout.CENTER);
+		frame.revalidate();
 	}
 	
 	//======================================================================================
@@ -301,11 +310,10 @@ public final class GUI
 			return;
 		}
 		
-		if (minimiseToTray())
-		{
-			visible = false;
-			frame.setVisible(visible);
-		}
+		minimiseToTray();
+		
+		visible = false;
+		frame.setVisible(visible);
 	}
 	
 	/**
@@ -480,19 +488,25 @@ public final class GUI
 	
 	private static void writeToLog()
 	{
+		if ( !Logger.initialised)
+		{
+			return;
+		}
+		
 		try
 		{
 			String text = textQueue.take();
-			AttributeSet attributes = attributeQueue.take();
+			AttributeSet attributes = attributeQueue.take().copyAttributes();
 			
 			latch.await();
 			
 			if (textPane != null)
 			{
-				try
+				SwingUtilities.invokeLater(() ->
 				{
-					synchronized (Logger.logDocumentWriteLock)
+					try
 					{
+						// check whether a full line is ready for flush.
 						if ( !text.contains("\n"))
 						{
 							secondTextQueue.add(text);
@@ -500,44 +514,63 @@ public final class GUI
 						}
 						else
 						{
+							// if not, then get the last element (includes new line trigger)
 							synchronized (textQueue)
 							{
 								secondTextQueue.add(text);
 								secondAttributeQueue.add(attributes);
 							}
 							
+							String textTemp = null;
+							AttributeSet attributesTemp = null;
+							
+							// flush to log.
 							while ( !secondTextQueue.isEmpty())
 							{
-								text = secondTextQueue.take();
-								attributes = secondAttributeQueue.take();
-								// add text to log area
-								textPane.getDocument().insertString(textPane.getDocument().getLength(), text, attributes);
+								textTemp = secondTextQueue.poll();
+								attributesTemp = secondAttributeQueue.poll();
+								
+								Logger.addToHistory(textTemp, attributesTemp);
+								
+								synchronized (Logger.logAttributesLock)
+								{
+									// add text to log area
+									textPane.getInputAttributes().removeAttributes(textPane.getInputAttributes());
+									textPane.setCharacterAttributes(textPane.getInputAttributes(), true);
+									textPane.setParagraphAttributes(textPane.getInputAttributes(), true);
+									
+									textPane.getDocument().insertString(textPane.getDocument().getLength(), textTemp,
+											attributesTemp);
+								}
+								
+								File.writeToFile(textTemp);		// save to disk log file
 							}
 							
+							// scroll to bottom if was already at the bottom.
 							if ( !holdingBar && autoScroll)
 							{
-								caret.setUpdatePolicy(DefaultCaret.ALWAYS_UPDATE);
-								textPane.getDocument().insertString(textPane.getDocument().getLength(), "\r", attributes);
-								caret.setUpdatePolicy(DefaultCaret.NEVER_UPDATE);
-								textPane.setCaretPosition(textPane.getDocument().getLength());
+								trimLog();
+								
+								synchronized (Logger.logAttributesLock)
+								{
+									textPane.getInputAttributes().removeAttributes(textPane.getInputAttributes());
+									textPane.setCharacterAttributes(textPane.getInputAttributes(), true);
+									textPane.setParagraphAttributes(textPane.getInputAttributes(), true);
+									
+									caret.setUpdatePolicy(DefaultCaret.ALWAYS_UPDATE);
+									textPane.getDocument().insertString(textPane.getDocument().getLength(), "\r", attributesTemp);
+									caret.setUpdatePolicy(DefaultCaret.NEVER_UPDATE);
+									textPane.setCaretPosition(textPane.getDocument().getLength());
+								}
 							}
 						}
 					}
-				}
-				catch (BadLocationException e)
-				{
-					Logger.except(e);
-					e.printStackTrace();
-				}
-			}
-			
-			Logger.addToHistory(text, attributes);
-			File.writeToFile(text);		// save to disk log file
-			
-			if ( !holdingBar && autoScroll)
-			{
-				trimLog();
-//				scroll();
+					catch (Exception e)
+					{
+						Logger.except(e);
+						e.printStackTrace();
+					}
+				});
 			}
 		}
 		catch (Exception e)
@@ -547,52 +580,44 @@ public final class GUI
 	}
 	
 	/**
-	 *
+	 * Scrolls to the bottom and left of the log.
 	 */
 	private static void scroll()
 	{
-		if (entriesNum > maxEntries)
+		SwingUtilities.invokeLater(() ->
 		{
-			return;
-		}
-		
-		try
-		{
-			if ((scroller != null) && (scroller.getVerticalScrollBar() != null))
+			if (getEntriesNum() > maxEntries)
 			{
-				scroller.getHorizontalScrollBar()
-						.setValue(scroller.getHorizontalScrollBar().getMinimum());
-				scroller.getVerticalScrollBar()
-						.setValue(scroller.getVerticalScrollBar().getMaximum());
+				return;
 			}
-		}
-		catch (Throwable e)
-		{
-			e.printStackTrace();
-		}
+			
+			try
+			{
+				if ((scroller != null) && (scroller.getVerticalScrollBar() != null))
+				{
+					scroller.getHorizontalScrollBar()
+							.setValue(scroller.getHorizontalScrollBar().getMinimum());
+					scroller.getVerticalScrollBar()
+							.setValue(scroller.getVerticalScrollBar().getMaximum());
+				}
+			}
+			catch (Throwable e)
+			{
+				e.printStackTrace();
+			}
+		});
 	}
 	
 	static int countOverLimit(int limit)
 	{
-		if ( !Logger.initialised)
-		{
-			return 0;
-		}
-		
 		return Math.max(getEntriesNum() - limit, 0);
 	}
 	
 	/** reduce the max entries to be within the limit */
 	public static void trimLog()
 	{
-		SwingUtilities.invokeLater(() ->
-		{
-			synchronized (Logger.maxEntriesLock)
-			{
-				// remove extra
-				removeEntries(countOverLimit(maxEntries));
-			}
-		});
+		// remove extra
+		removeEntries(countOverLimit(maxEntries));
 	}
 	
 	/**
@@ -605,38 +630,7 @@ public final class GUI
 			return;
 		}
 		
-		synchronized (Logger.maxEntriesLock)
-		{
-			removeEntries(countOverLimit(0));
-		}
-	}
-	
-	/**
-	 * Gets the entries so far.
-	 *
-	 * @return the entriesNum
-	 */
-	public static int getEntriesNum()
-	{
-		entriesNum = 0;
-		
-		try
-		{
-			String text = textPane.getDocument().getText(0, textPane.getDocument().getLength());
-			Pattern pattern = Pattern.compile("\\d{2}/(\\w){3}/\\d{2} \\d{2}:\\d{2}:\\d{2} (AM|PM):");
-			Matcher matcher = pattern.matcher(text);
-			
-			while (matcher.find())
-			{
-				entriesNum++;
-			}
-		}
-		catch (BadLocationException e)
-		{
-			e.printStackTrace();
-		}
-		
-		return entriesNum;
+		removeEntries(countOverLimit(0));
 	}
 	
 	/**
@@ -647,28 +641,41 @@ public final class GUI
 	 */
 	public static void removeEntries(int count)
 	{
-		synchronized (Logger.logDocumentWriteLock)
+		if ( !Logger.initialised)
 		{
-			for (int i = count; ((i > 0) && (textPane.getDocument().getDefaultRootElement().getElement(0).getElementCount() > 0)); i--)
+			return;
+		}
+		
+		SwingUtilities
+				.invokeLater(() ->
+				{
+					int elements = getEntriesNum();
+					
+					for (int i = count; ((i > 0) && (elements > 0) && (count <= elements)); i--)
+					{
+						try
+						{
+							Element first;
+							
+							// get <html>
+				Element root = textPane.getDocument().getDefaultRootElement();
+				// get <body>, and then the first entry in the body.
+				first = root.getElement(0);
+				
+				// remove the first element.
+				textPane.getDocument().remove(first.getStartOffset(), first.getEndOffset());
+			}
+			catch (BadLocationException e)
 			{
-				try
-				{
-					Element first;
-					
-					// get <html>
-					Element root = textPane.getDocument().getDefaultRootElement();
-					// get <body>, and then the first entry in the body.
-					first = root.getElement(0).getElement(0);
-					
-					// remove the first element.
-					textPane.getDocument().remove(first.getStartOffset(), first.getEndOffset());
-				}
-				catch (BadLocationException e)
-				{
-					e.printStackTrace();
-				}
+				e.printStackTrace();
 			}
 		}
+	})	;
+	}
+	
+	private static int getEntriesNum()
+	{
+		return textPane.getDocument().getDefaultRootElement().getElementCount();
 	}
 	
 	//======================================================================================
@@ -707,12 +714,12 @@ public final class GUI
 	 */
 	public static void setMaxEntries(int maxEntries)
 	{
+		GUI.maxEntries = maxEntries;
+		
 		if ( !Logger.initialised || (GUI.maxEntries == maxEntries))
 		{
 			return;
 		}
-		
-		GUI.maxEntries = maxEntries;
 		
 		trimLog();
 	}
@@ -733,40 +740,36 @@ public final class GUI
 	 */
 	public static synchronized void setFontSize(int fontSize)
 	{
+		GUI.fontSize = fontSize;
+		
 		if ( !Logger.initialised || (GUI.fontSize == fontSize))
 		{
 			return;
 		}
 		
-		GUI.fontSize = fontSize;
-		
-		AttributeSet attributesCopy;
-		
-		synchronized (Logger.logAttributesLock)
+		SwingUtilities.invokeLater(() ->
 		{
-			MutableAttributeSet attributes = textPane.getInputAttributes();
-			attributes.removeAttribute(StyleConstants.FontFamily);
-			attributes.removeAttribute(StyleConstants.FontSize);
-			attributes.removeAttribute(StyleConstants.Italic);
-			attributes.removeAttribute(StyleConstants.Bold);
-			attributes.removeAttribute(StyleConstants.Foreground);
-			attributes.addAttribute(StyleConstants.FontSize, fontSize);
+			AttributeSet attributesCopy;
 			
-			attributesCopy = attributes.copyAttributes();
-		}
-		
-		synchronized (Logger.logDocumentWriteLock)
-		{
+			synchronized (Logger.logAttributesLock)
+			{
+				MutableAttributeSet attributes = textPane.getInputAttributes();
+				attributes.removeAttribute(StyleConstants.FontFamily);
+				attributes.removeAttribute(StyleConstants.FontSize);
+				attributes.removeAttribute(StyleConstants.Italic);
+				attributes.removeAttribute(StyleConstants.Bold);
+				attributes.removeAttribute(StyleConstants.Foreground);
+				attributes.addAttribute(StyleConstants.FontSize, fontSize);
+				
+				attributesCopy = attributes.copyAttributes();
+			}
+			
 			textPane.getStyledDocument().setCharacterAttributes(0, textPane.getDocument().getLength()
 					, attributesCopy, false);
-		}
+		});
 		
-		// scroll to bottom
-		if ((scroller != null) && (scroller.getVerticalScrollBar() != null))
-		{
-			//				frame.revalidate();
-			scroller.getVerticalScrollBar().setValue(scroller.getVerticalScrollBar().getMaximum());
-		}
+//		// scroll to bottom
+//		scroll();
 	}
 	
 	/**
@@ -785,20 +788,24 @@ public final class GUI
 	 */
 	public static synchronized void setWrap(boolean wrap)
 	{
-		if ( !initialised || (GUI.wrap == wrap))
+		if ( !Logger.initialised || (GUI.wrap == wrap))
 		{
 			return;
 		}
 		
 		GUI.wrap = wrap;
 		
-		try
+		SwingUtilities.invokeLater(() ->
 		{
-			String oldText = textPane.getText().replace("\t", "&#9;");
-			
-			synchronized (Logger.logDocumentWriteLock)
+			try
 			{
-				// recreate the log panel
+				String oldText = textPane.getText();
+				
+				synchronized (Logger.logAttributesLock)
+				{
+					synchronized (Logger.logDocumentWriteLock)
+					{
+						// recreate the log panel
 				initLog();
 				
 				// relog to new panel
@@ -806,19 +813,17 @@ public final class GUI
 				
 				// move caret to new line at the end (replacing text leaves it at end of last line).
 				textPane.getDocument().insertString(textPane.getDocument().getLength(), "\r\n", null);
-				
-				// scroll to bottom
-				if (scroller != null)
-				{
-//					frame.revalidate();
-					scroller.getVerticalScrollBar().setValue(scroller.getVerticalScrollBar().getMaximum());
-				}
+//
+//									// scroll to bottom
+//									scroll();
 			}
 		}
-		catch (BadLocationException e)
-		{
-			e.printStackTrace();
-		}
+	}
+	catch (BadLocationException e)
+	{
+		e.printStackTrace();
+	}
+})		;
 	}
 	
 	/**
@@ -851,7 +856,7 @@ public final class GUI
 	public static void setActionOnClose(int actionOnClose)
 	{
 		GUI.actionOnClose = actionOnClose;
-		frame.setDefaultCloseOperation(actionOnClose);
+		setHideOnClose(actionOnClose == WindowConstants.HIDE_ON_CLOSE);
 	}
 	
 	/**
@@ -865,9 +870,36 @@ public final class GUI
 		GUI.actionOnClose = actionOnClose;
 	}
 	
-	//======================================================================================
-	// #endregion Getters and setters.
-	////////////////////////////////////////////////////////////////////////////////////////
+	/**
+	 * @return the hideOnClose
+	 */
+	public static boolean isHideOnClose()
+	{
+		return hideOnClose;
+	}
+	
+	/**
+	 * @param hideOnClose
+	 *            the hideOnClose to set
+	 */
+	public static void setHideOnClose(boolean hideOnClose)
+	{
+		GUI.hideOnClose = hideOnClose;
+		
+		if (hideOnClose)
+		{
+			actionOnClose = WindowConstants.HIDE_ON_CLOSE;
+		}
+		else
+		{
+			actionOnClose = WindowConstants.EXIT_ON_CLOSE;
+		}
+		
+		if (frame != null)
+		{
+			frame.setDefaultCloseOperation(actionOnClose);
+		}
+	}
 	
 	/**
 	 * @return the appIcon
@@ -887,91 +919,12 @@ public final class GUI
 		frame.setIconImage(appIcon);
 	}
 	
+	//======================================================================================
+	// #endregion Getters and setters.
+	////////////////////////////////////////////////////////////////////////////////////////
+	
 	// static methods class!
 	private GUI()
 	{}
-	
-}
-
-
-class WrapControlledEditorKit extends HTMLEditorKit
-{
-	
-	private static final long	serialVersionUID	= -1541542932309843548L;
-	private boolean				wrap				= false;
-	
-	public WrapControlledEditorKit(boolean wrap)
-	{
-		this.wrap = wrap;
-	}
-	
-	@Override
-	public ViewFactory getViewFactory()
-	{
-		return new WrapControlledViewFactory();
-	}
-	
-	/**
-	 * Checks if is wrap.
-	 *
-	 * @return the wrap
-	 */
-	public boolean isWrap()
-	{
-		return wrap;
-	}
-	
-	/**
-	 * Sets the wrap.
-	 *
-	 * @param wrap
-	 *            the wrap to set
-	 */
-	public void setWrap(boolean wrap)
-	{
-		this.wrap = wrap;
-	}
-	
-	class WrapControlledViewFactory extends HTMLEditorKit.HTMLFactory
-	{
-		
-		@Override
-		public View create(Element elem)
-		{
-			Object o = elem.getAttributes().getAttribute(StyleConstants.NameAttribute);
-			
-			if (o instanceof HTML.Tag)
-			{
-				HTML.Tag kind = (HTML.Tag) o;
-				if (kind == HTML.Tag.CONTENT)
-				{
-					if ( !wrap)
-					{
-						return new NoWrapBoxView(elem);
-					}
-					
-					return new InlineView(elem);
-				}
-			}
-			
-			return super.create(elem);
-		}
-	}
-	
-	static class NoWrapBoxView extends InlineView
-	{
-		
-		public NoWrapBoxView(Element elem)
-		{
-			super(elem);
-		}
-		
-		@Override
-		public int getBreakWeight(int axis, float pos, float len)
-		{
-			return BadBreakWeight;
-		}
-		
-	}
 	
 }

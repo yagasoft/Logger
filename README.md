@@ -1,4 +1,4 @@
-Logger v5.03.135
+Logger v5.04.160
 ================
 
 A simple and stylised GUI logger that saves its entries to a log file in real time.
@@ -27,7 +27,9 @@ A simple and stylised GUI logger that saves its entries to a log file in real ti
 	+ Auto log files are in plain text
   + Wrapping is off
   + Max entries are 500
-  + Hide on close is on. Make sure to check the thread in memory if your OS doesn't support tray icons please.
+  + Hide on close is on.
+	+ Make sure to check the thread in memory if your OS doesn't support tray icons please.
+	+ This is so as not to close the program associated with the logger, unless explicitly specified.
 
 ### Notes:
 

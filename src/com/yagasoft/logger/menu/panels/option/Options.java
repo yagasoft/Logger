@@ -6,7 +6,7 @@
  *
  *		Project/File: Logger/com.yagasoft.logger.menu.panels.option/Options.java
  *
- *			Modified: 24-Jul-2014 (23:32:02)
+ *			Modified: 27-Jul-2014 (20:18:24)
  *			   Using: Eclipse J-EE / JDK 8 / Windows 8.1 x64
  */
 
@@ -25,16 +25,19 @@ public class Options implements Serializable
 	private static final long	serialVersionUID	= 2892595292752232935L;
 
 	/** Number of entries. */
-	public int					numberOfEntries;
+	public Integer					numberOfEntries;
 
 	/** Font size. */
-	public int					fontSize;
+	public Integer					fontSize;
 
 	/** Wrap. */
-	public boolean				wrap;
+	public Boolean				wrap;
+
+	/** Hide on close. */
+	public Boolean				hideOnClose;
 
 	/** Action on close. */
-	public int					actionOnClose;
+	public Integer					actionOnClose;
 
 	/** Last directory. */
 	public String				lastDirectory;
@@ -54,11 +57,14 @@ public class Options implements Serializable
 	 *            Font size.
 	 * @param wrap
 	 *            Wrap.
+	 * @param hideOnClose
+	 *            Hide on close.
 	 */
-	public Options(int maxEntries, int fontSize, boolean wrap)
+	public Options(int maxEntries, int fontSize, boolean wrap, boolean hideOnClose)
 	{
 		numberOfEntries = maxEntries;
 		this.fontSize = fontSize;
 		this.wrap = wrap;
+		this.hideOnClose = hideOnClose;
 	}
 }

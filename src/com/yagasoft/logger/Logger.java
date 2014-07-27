@@ -35,6 +35,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Date;
 import java.util.List;
+import java.util.concurrent.LinkedBlockingQueue;
 import java.util.stream.Collectors;
 
 import javax.swing.JFileChooser;
@@ -62,29 +63,33 @@ public class Logger
 	// please, don't change the order of the fields.
 	
 	/** Constant: VERSION. */
-	public static final String	VERSION					= "5.03.135";
+	public static final String							VERSION					= "5.04.160";
 	
 	/** set when the log is accessible and ready. */
-	public static boolean		initialised				= false;
+	public static boolean								initialised				= false;
 	
 	/* holds last posted date. This is used for postDateIfChanged method */
-	private static String		date					= "";
+	private static String								date					= "";
 	
 	// everything that has been logged so far in plain format.
 //	private static String		history				= "";
 	
 	// everything that has been logged in styled format.
-	private static List<String>	historyStylised			= new ArrayList<String>();
+	private static List<String>							historyStylised			= new ArrayList<String>();
 	
 	// last directory browsed to save a file
-	private static Path			lastDirectory			= Paths.get(System.getProperty("user.home"));
+	private static Path									lastDirectory			= Paths.get(System.getProperty("user.home"));
 	
 	/* where the logs will be stored relative to project path. */
-	private static final Path	OPTIONS_FILE			= Paths.get(System.getProperty("user.dir") + "/var/options.dat");
+	private static final Path							OPTIONS_FILE			= Paths.get(System.getProperty("user.dir")
+																						+ "/var/options.dat");
 	
-	static Object				maxEntriesLock			= new Object();
-	static Object				logAttributesLock		= new Object();
-	static Object				logDocumentWriteLock	= new Object();
+	static Object										maxEntriesLock			= new Object();
+	static Object										logAttributesLock		= new Object();
+	static Object										logDocumentWriteLock	= new Object();
+	
+	private static LinkedBlockingQueue<String>			historyTextQueue		= new LinkedBlockingQueue<String>();
+	private static LinkedBlockingQueue<AttributeSet>	historyAttributeQueue	= new LinkedBlockingQueue<AttributeSet>();
 	
 	private static enum EntryType
 	{
@@ -226,6 +231,32 @@ public class Logger
 			
 			File.initFile();
 			GUI.initLogger();
+			
+			// history thread.
+			new Thread(() ->
+			{
+				String historyText;
+				AttributeSet historyAttribute;
+				
+				while (true)
+				{
+					try
+					{
+						historyText = historyTextQueue.take();
+						historyAttribute = historyAttributeQueue.take();
+						
+						synchronized (historyStylised)
+						{
+							historyStylised.add(getHTML(historyText, historyAttribute));
+						}
+						
+					}
+					catch (Exception e)
+					{
+						e.printStackTrace();
+					}
+				}
+			}).start();
 			
 			initialised = true;
 			
@@ -600,13 +631,17 @@ public class Logger
 	// #endregion Public posting interface.
 	// //////////////////////////////////////////////////////////////////////////////////////
 	
-	// add to stylised history.
+	// add to stylised history queue.
 	static void addToHistory(String entry, AttributeSet style)
 	{
-		synchronized (historyStylised)
+		try
 		{
-//			history += entry;
-			historyStylised.add(getHTML(entry, style));
+			historyTextQueue.put(entry);
+			historyAttributeQueue.put(style);
+		}
+		catch (InterruptedException e)
+		{
+			e.printStackTrace();
 		}
 	}
 	
@@ -713,26 +748,24 @@ public class Logger
 		
 		try
 		{
+			MutableAttributeSet attributes = conversionPane.getInputAttributes();
+			attributes.removeAttribute(StyleConstants.FontFamily);
+			attributes.removeAttribute(StyleConstants.FontSize);
+			attributes.removeAttribute(StyleConstants.Italic);
+			attributes.removeAttribute(StyleConstants.Bold);
+			attributes.removeAttribute(StyleConstants.Foreground);
+			attributes.addAttribute(StyleConstants.FontFamily, style.getAttribute(StyleConstants.FontFamily));
+			attributes.addAttribute(StyleConstants.FontSize, 8);
+			attributes.addAttribute(StyleConstants.Italic, style.getAttribute(StyleConstants.Italic));
+			attributes.addAttribute(StyleConstants.Bold, style.getAttribute(StyleConstants.Bold));
+			attributes.addAttribute(StyleConstants.Foreground, style.getAttribute(StyleConstants.Foreground));
+			
 			// replace characters that aren't parsed by the HTML panel!!!
 			// add the plain text to an HTML editor to convert the text to a stylised HTML.
-			conversionPane.getDocument().insertString(conversionPane.getCaretPosition()
+			conversionPane.getDocument().insertString(conversionPane.getDocument().getLength()
 					, text.replace("\n", "`new_line`").replace("\t", "`tab`")
 							.replace(" ", "`space`")
-					, style);
-			
-			synchronized (logAttributesLock)
-			{
-				MutableAttributeSet attributes = conversionPane.getInputAttributes();
-				attributes.removeAttribute(StyleConstants.FontFamily);
-				attributes.removeAttribute(StyleConstants.FontSize);
-				attributes.removeAttribute(StyleConstants.Italic);
-				attributes.removeAttribute(StyleConstants.Bold);
-				attributes.removeAttribute(StyleConstants.Foreground);
-				attributes.addAttribute(StyleConstants.FontSize, 8);
-				
-				conversionPane.getStyledDocument().setCharacterAttributes(0, conversionPane.getDocument().getLength()
-						, attributes.copyAttributes(), false);
-			}
+					, attributes);
 		}
 		catch (BadLocationException e)
 		{
@@ -745,7 +778,7 @@ public class Logger
 		return conversionPane.getText().replace("<html>", "").replace("</html>", "").replace("<head>", "")
 				.replace("</head>", "").replace("<body>", "").replace("</body>", "")
 				.replace("`new_line`", "<br />").replace("`tab`", "&#9;").replace("`space`", "&nbsp;")
-				.replace("<p style", "<span style").replace("</p>", "</span>");
+				.replace("<p style", "<span style").replace("</p>", "</span>").replace("<p>", "<span>");
 	}
 	
 	// ======================================================================================
@@ -904,7 +937,7 @@ public class Logger
 			GUI.setMaxEntries(options.numberOfEntries);
 			GUI.setFontSize(options.fontSize);
 			GUI.setWrapVarOnly(options.wrap);
-			GUI.setActionOnCloseVarOnly(options.actionOnClose);
+			GUI.setHideOnClose(options.hideOnClose);
 			lastDirectory = Paths.get(options.lastDirectory);
 		}
 		catch (ClassNotFoundException | IOException e)
@@ -920,7 +953,7 @@ public class Logger
 	{
 		FileOutputStream fileStream;
 		ObjectOutputStream objectStream;
-		Options options = new Options(GUI.getMaxEntries(), GUI.getFontSize(), GUI.isWrap());
+		Options options = new Options(GUI.getMaxEntries(), GUI.getFontSize(), GUI.isWrap(), GUI.isHideOnClose());
 		options.actionOnClose = GUI.getActionOnClose();
 		options.lastDirectory = lastDirectory.toString();
 		
