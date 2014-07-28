@@ -6,16 +6,16 @@
  *
  *		Project/File: Logger/com.yagasoft.logger/Logger.java
  *
- *			Modified: 28-Jul-2014 (03:22:32)
+ *			Modified: 28-Jul-2014 (14:51:14)
  *			   Using: Eclipse J-EE / JDK 8 / Windows 8.1 x64
  */
 
 package com.yagasoft.logger;
 
 
-import static com.yagasoft.logger.Logger.SequenceOption.BLACK_LAST_STRING;
-import static com.yagasoft.logger.Logger.SequenceOption.COLOUR_LAST_STRING;
-import static com.yagasoft.logger.Logger.SequenceOption.REMOVE_SEPARATOR;
+import static com.yagasoft.logger.Log.SequenceOption.BLACK_LAST_STRING;
+import static com.yagasoft.logger.Log.SequenceOption.COLOUR_LAST_STRING;
+import static com.yagasoft.logger.Log.SequenceOption.REMOVE_SEPARATOR;
 import static com.yagasoft.logger.PrintStreamCapturer.CaptureType.ERROR;
 import static com.yagasoft.logger.PrintStreamCapturer.CaptureType.OUT;
 
@@ -29,15 +29,15 @@ import java.io.Writer;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.nio.file.StandardOpenOption;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.List;
-import java.util.concurrent.ExecutorService;
+import java.util.Map;
 import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.ThreadPoolExecutor;
-import java.util.concurrent.TimeUnit;
 
 import javax.swing.JFileChooser;
 import javax.swing.JTextPane;
@@ -47,14 +47,15 @@ import javax.swing.text.MutableAttributeSet;
 import javax.swing.text.StyleConstants;
 import javax.swing.text.html.HTMLEditorKit;
 
+import com.yagasoft.logger.Log.SequenceOption;
 import com.yagasoft.logger.menu.panels.option.Options;
 
 
 /**
- * This class contains static methods to log entries, display them in a stylised form, and save them to disk in a log file.<br />
+ * This class contains methods to log entries, display them in a stylised form, and save them to disk in a log file.<br />
  * <br />
  * Everything is initialised automatically when calling the first post or error or exception. (everything is static)<br/>
- * To show the window call {@link #showLogger()}, which does initialise the log as above if it was the first thing called.<br />
+ * To show the window call {@link GUI#showLogger()}, which does initialise the log as above if it was the first thing called.<br />
  * <br/>
  * <strong>Defaults:</strong> read 'README.md'.
  */
@@ -63,149 +64,89 @@ public class Logger
 
 	// please, don't change the order of the fields.
 
-	/** Constant: VERSION. */
-	public static final String							VERSION					= "6.01.015";
-
 	/** set when the log is accessible and ready. */
-	public static boolean								initialised				= false;
+	private boolean								initialised				= false;
 
-	/* holds last posted date. This is used for postDateIfChanged method */
-	private static String								date					= "";
+	private LinkedBlockingQueue<String>			historyTextQueue		= new LinkedBlockingQueue<String>();
+	private LinkedBlockingQueue<AttributeSet>	historyAttributeQueue	= new LinkedBlockingQueue<AttributeSet>();
 
-	// everything that has been logged so far in plain format.
-//	private static String		history				= "";
+	private JTextPane							conversionPane			= new JTextPane();
 
-	// everything that has been logged in styled format.
-	private static List<String>							historyStylised			= new ArrayList<String>();
-
-	// last directory browsed to save a file
-	private static Path									lastDirectory;
-
-	private static boolean								captureConsole;
-
-	static Object										logAttributesLock		= new Object();
-
-	private static LinkedBlockingQueue<String>			historyTextQueue		= new LinkedBlockingQueue<String>();
-	private static LinkedBlockingQueue<AttributeSet>	historyAttributeQueue	= new LinkedBlockingQueue<AttributeSet>();
-
-	static ExecutorService								threadQueue				= new ThreadPoolExecutor(1, Integer.MAX_VALUE, 0,
-																						TimeUnit.NANOSECONDS
-																						, new LinkedBlockingQueue<Runnable>());
-
-	private static enum EntryType
+	private enum EntryType
 	{
 		INFO,
 		ERROR,
 		EXCEPTION
 	}
 
+	/* Default number of colours. */
+	private int				defaultNumberOfColours;
+
+	/* Default coloured strings separator for {@link #infoColoured(String...)}. */
+	private String			defaultColouringSeparator;
+
+	/* Default black last string flag for {@link #infoColouredSeparator(String, String...)}. */
+	private boolean			defaultBlackLastString;
+
 	////////////////////////////////////////////////////////////////////////////////////////
 	// #region Style.
 	//======================================================================================
 
-	private static final String	font						= "Verdana";
+	private final String	font		= "Verdana";
 
 	//--------------------------------------------------------------------------------------
 	// #region Colours.
 
 	// a bit lighter than the one from the Color class.
-	private static final Color	BLUE						= new Color(35, 40, 210);
+	private final Color		BLUE		= new Color(35, 40, 210);
 
-	private static final Color	ORANGE						= new Color(150, 80, 0);
-	private static final Color	LIGHT_BLUE					= new Color(0, 120, 120);
-
-	// a bit darker than the one from the Color class.
-	private static final Color	GREEN						= new Color(0, 140, 0);
-
-	private static final Color	VIOLET						= new Color(120, 0, 200);
-	private static final Color	DARK_RED					= new Color(230, 0, 0);
+	private final Color		ORANGE		= new Color(150, 80, 0);
+	private final Color		LIGHT_BLUE	= new Color(0, 120, 120);
 
 	// a bit darker than the one from the Color class.
-	private static final Color	MAGENTA						= new Color(220, 0, 160);
+	private final Color		GREEN		= new Color(0, 140, 0);
+
+	private final Color		VIOLET		= new Color(120, 0, 200);
+	private final Color		RED			= new Color(230, 0, 0);
+
+	// a bit darker than the one from the Color class.
+	private final Color		MAGENTA		= new Color(220, 0, 160);
+
+	private final Color		BLACK		= new Color(0, 0, 0);
+	private final Color		GREY		= new Color(180, 180, 180);
 
 	// colours to cycle through when displaying info with words wrapped in '`'.
-	private static Color[]		colours						= { BLUE, ORANGE, LIGHT_BLUE, VIOLET, DARK_RED, GREEN, MAGENTA };
+	private Color[]			colours		= { BLUE, ORANGE, LIGHT_BLUE, VIOLET, RED, GREEN, MAGENTA };
 
 	// #endregion Colours.
 	//--------------------------------------------------------------------------------------
-
-	/** Default number of colours. */
-	public static int			defaultNumberOfColours		= colours.length;
-
-	/** Default coloured strings separator for {@link #infoColoured(String...)}. */
-	public static String		defaultColouringSeparator	= " ";
-
-	/** Default black last string flag for {@link #infoColouredSeparator(String, String...)}. */
-	public static boolean		defaultBlackLastString		= false;
 
 	/* style passed to getStyle method. */
 	private enum Style
 	{
 		PLAIN,
 		BOLD,
-		ITALIC,
+//		ITALIC,
 		BOLDITALIC
 	}
 
-	/**
-	 * Options for {@link Logger#infoColouredSequence(int, String, String, SequenceOption...)}
-	 */
-	public static enum SequenceOption
-	{
+	private AttributeSet				tempStyle;
+	private MutableAttributeSet			htmlAttributes;
 
-		/** Remove separator after using it to split the string. */
-		REMOVE_SEPARATOR,
-
-		/** Black-coloured last string. */
-		BLACK_LAST_STRING,
-
-		/** Colour the last string. */
-		COLOUR_LAST_STRING,
-
-		/** No option! */
-		NONE
-	}
+	/** Attribute pool. */
+	public Map<String, AttributeSet>	attrPool	= new HashMap<String, AttributeSet>(
+															Style.values().length * 16 * (colours.length + 2));
 
 	//======================================================================================
 	// #endregion Style.
 	////////////////////////////////////////////////////////////////////////////////////////
 
+	private GUI							gui;
+	private File						file;
+
 	////////////////////////////////////////////////////////////////////////////////////////
 	// #region Initialisation.
 	//======================================================================================
-
-	/**
-	 * Convenience method for {@link #initAndShowLogger(String, int, boolean)}, using defaults (' ', max, false).
-	 */
-	public static void initAndShowLogger()
-	{
-		initAndShowLogger(defaultColouringSeparator, defaultNumberOfColours, defaultBlackLastString);
-	}
-
-	/**
-	 * Convenience method for {@link #initLogger(String, int, boolean)}.
-	 *
-	 * @param defaultSeparator
-	 *            Default separator.
-	 * @param defaultNumberOfColours
-	 *            Default number of colours.
-	 * @param defaultBlackLastString
-	 *            Default black last string?
-	 */
-	public static void initAndShowLogger(String defaultSeparator, int defaultNumberOfColours
-			, boolean defaultBlackLastString)
-	{
-		initLogger(defaultSeparator, defaultNumberOfColours, defaultBlackLastString);
-		GUI.showLogger();
-	}
-
-	/**
-	 * Convenience method for {@link #initLogger(String, int, boolean)}, using defaults (' ', max, false).
-	 */
-	public static void initLogger()
-	{
-		initLogger(defaultColouringSeparator, defaultNumberOfColours, defaultBlackLastString);
-	}
 
 	/**
 	 * Initialises the logger by loading the options, initialising the log file, and the GUI.
@@ -217,40 +158,38 @@ public class Logger
 	 * @param defaultBlackLastString
 	 *            Default black last string to use for {@link #infoColouredSeparator(int, boolean, String, String...)}
 	 */
-	public static void initLogger(String defaultSeparator, int defaultNumberOfColours
-			, boolean defaultBlackLastString)
+	void initLogger(String defaultSeparator, int defaultNumberOfColours, boolean defaultBlackLastString)
 	{
 		// set defaults
-		Logger.defaultColouringSeparator = defaultSeparator;
-		Logger.defaultNumberOfColours = defaultNumberOfColours;
-		Logger.defaultBlackLastString = defaultBlackLastString;
+		defaultColouringSeparator = defaultSeparator;
+		this.defaultNumberOfColours = defaultNumberOfColours;
+		this.defaultBlackLastString = defaultBlackLastString;
 
 		// initialise logger if it wasn't.
 		if ( !initialised)
 		{
 			Options.getInstance().loadOptions();
-
-			GUI.initLogger();
-			File.initFile();
+			gui = GUI.getInstance();
+			initStyles();
+			file = File.getInstance();
 
 			// history thread.
 			new Thread(() ->
 			{
-				String historyText;
-				AttributeSet historyAttribute;
+				String text;
+				AttributeSet attributes;
 
 				while (true)
 				{
 					try
 					{
-						historyText = historyTextQueue.take();
-						historyAttribute = historyAttributeQueue.take();
+						text = historyTextQueue.take();
+						attributes = historyAttributeQueue.take();
 
-						synchronized (historyStylised)
+						synchronized (historyTextQueue)
 						{
-							historyStylised.add(getHTML(historyText, historyAttribute));
+							file.writeToHTML(getHTML(text, attributes));
 						}
-
 					}
 					catch (Exception e)
 					{
@@ -259,6 +198,10 @@ public class Logger
 				}
 			}).start();
 
+			// used to convert text to HTML
+			conversionPane.setEditorKit(new HTMLEditorKit());
+			htmlAttributes = conversionPane.getInputAttributes();
+
 			initialised = true;
 
 			// post something and create a log file for this session.
@@ -266,74 +209,53 @@ public class Logger
 		}
 	}
 
+	private void initStyles()
+	{
+		for (Style style : Style.values())
+		{
+			for (int i = 10; i < 26; i++)
+			{
+				attrPool.putIfAbsent("" + i + style + BLACK, getStyle(i, style, BLACK));
+				attrPool.putIfAbsent("" + i + style + GREY, getStyle(i, style, GREY));
+
+				for (Color colour : colours)
+				{
+					attrPool.putIfAbsent("" + i + style + colour, getStyle(i, style, colour));
+				}
+			}
+		}
+	}
+
 	//======================================================================================
 	// #endregion Initialisation.
 	////////////////////////////////////////////////////////////////////////////////////////
 
-	/**
-	 * Show logger window.
-	 */
-	public static synchronized void showLogger()
-	{
-		GUI.showLogger();
-	}
-
-	/**
-	 * Hide logger window.
-	 */
-	public static synchronized void hideLogger()
-	{
-		GUI.hideLogger();
-	}
-
 	// //////////////////////////////////////////////////////////////////////////////////////
-	// #region Public posting interface.
+	// #region Posting.
 	// ======================================================================================
 
 	//--------------------------------------------------------------------------------------
 	// #region Info posting.
 
-	/**
-	 * Informing log entry. You can use '`' character as to wrap words to be coloured. Colouring will cycle between 7 colours.
-	 *
-	 * @param entry
-	 *            Entry.
-	 * @param coloursToUse
-	 *            Number of colours to use, excluding black (current max is 7), optional.
-	 *            Anything outside 0..max results in max.
-	 */
-	public static synchronized void info(String entry, int... coloursToUse)
+	void info(String entry, int... coloursToUse)
 	{
-		// write the time stamp, then the entry next to it.
-
-		// write the time stamp
-		postTimeStamp(GUI.isShowOnlyErrors());
+		postTimeStamp(Options.getInstance().isShowOnlyErrors());
 
 		// line label
-		AttributeSet style = getStyle(0, Style.BOLDITALIC, GREEN);
-		GUI.append(new Entry("Info: ", style, GUI.isShowOnlyErrors()));
+		tempStyle = attrPool.get("" + Options.getInstance().getFontSize() + Style.BOLDITALIC + GREEN);
+		gui.append("Info: ", tempStyle, Options.getInstance().isShowOnlyErrors());
 
 		// append the entries on new lines using number of colours passed.
 		postEntry(entry, coloursToUse);
 	}
 
-	/**
-	 * Informing log entries. This will be posted one after the other in the same time-stamp.
-	 * You can use '`' character as to wrap words to be coloured. Colouring will cycle between colours.
-	 *
-	 * @param coloursToUse
-	 *            Number of colours to use, excluding black (current max is 7). Pass '-1' for max colours.
-	 * @param entries
-	 *            List of entries to post.
-	 */
-	public static synchronized void info(int coloursToUse, String... entries)
+	void info(int coloursToUse, String... entries)
 	{
-		// write the time stamp
-		postTimeStamp(GUI.isShowOnlyErrors());
+		postTimeStamp(Options.getInstance().isShowOnlyErrors());
 
 		// entry label.
-		AttributeSet style = getStyle(0, Style.BOLDITALIC, new Color(0, 150, 0));
-		GUI.append(new Entry("Info ...\n", style, GUI.isShowOnlyErrors()));
+		tempStyle = attrPool.get("" + Options.getInstance().getFontSize() + Style.BOLDITALIC + GREEN);
+		gui.append("Info ...\n", tempStyle, Options.getInstance().isShowOnlyErrors());
 
 		// append the entry using number of colours passed.
 		for (String entry : entries)
@@ -343,7 +265,7 @@ public class Logger
 	}
 
 	// this method is the common process of posting entries for the two methods above.
-	private static synchronized void postEntry(String entry, int... coloursToUse)
+	private synchronized void postEntry(String entry, int... coloursToUse)
 	{
 		// split the entry into sections based on the delimiter '`'
 		String[] entries = entry.split("`");
@@ -352,81 +274,44 @@ public class Logger
 		int numberOfColours = Arrays.stream(coloursToUse).findFirst().orElse(defaultNumberOfColours);
 		numberOfColours = (numberOfColours == -1) ? colours.length : numberOfColours;
 
-		AttributeSet style = getStyle(Style.PLAIN);
+		tempStyle = attrPool.get("" + Options.getInstance().getFontSize() + Style.PLAIN + BLACK);
 
 		// iterate over entry sections
 		for (int i = 0; i < entries.length; i++)
 		{
 			// reset style
-			style = getStyle(Style.PLAIN);
+			tempStyle = attrPool.get("" + Options.getInstance().getFontSize() + Style.PLAIN + BLACK);
 
 			// odd entries are the ones needing colour
 			if (((i % 2) == 1) && (numberOfColours > 0))
 			{
 				// post escaped entry using a different colour.
-				style = getStyle(Style.PLAIN, colours[(i / 2) % numberOfColours]);
+				tempStyle = attrPool.get("" + Options.getInstance().getFontSize() + Style.PLAIN
+						+ colours[(i / 2) % numberOfColours]);
 			}
 
-			GUI.append(new Entry(entries[i], style, GUI.isShowOnlyErrors()));
+			gui.append(entries[i], tempStyle, Options.getInstance().isShowOnlyErrors());
 		}
 
-		GUI.append(new Entry("\n", style, GUI.isShowOnlyErrors()));
+		gui.append("\n", tempStyle, Options.getInstance().isShowOnlyErrors());
 	}
 
-	/**
-	 * Post strings, coloured using the max number of colours, and separated (added to entry) by the default set separator.
-	 * It doesn't colour the last string as black.
-	 *
-	 * @param strings
-	 *            Strings.
-	 */
-	public static void infoColoured(String... strings)
+	void infoColoured(String... strings)
 	{
 		infoColouredSeparator(defaultColouringSeparator, strings);
 	}
 
-	/**
-	 * Post strings, coloured using the number of colours passed, and separated (added to entry) by the default set separator.
-	 *
-	 * @param coloursToUse
-	 *            Colours to use, -1 for max.
-	 * @param blackLastString
-	 *            Black last string?
-	 * @param strings
-	 *            Strings.
-	 */
-	public static void infoColoured(int coloursToUse, boolean blackLastString, String... strings)
+	void infoColoured(int coloursToUse, boolean blackLastString, String... strings)
 	{
 		infoColouredSeparator(coloursToUse, blackLastString, defaultColouringSeparator, strings);
 	}
 
-	/**
-	 * Post strings, coloured using the max number of colours, and separated (added to entry) by the passed separator.
-	 * It doesn't colour the last string as black.
-	 *
-	 * @param separator
-	 *            Separator.
-	 * @param strings
-	 *            Strings.
-	 */
-	public static void infoColouredSeparator(String separator, String... strings)
+	void infoColouredSeparator(String separator, String... strings)
 	{
 		infoColouredSeparator(defaultNumberOfColours, defaultBlackLastString, separator, strings);
 	}
 
-	/**
-	 * Post strings, coloured using the number of colours passed, and separated (added to entry) by the passed separator.
-	 *
-	 * @param coloursToUse
-	 *            Colours to use, -1 for max.
-	 * @param blackLastString
-	 *            Black last string?
-	 * @param separator
-	 *            Separator.
-	 * @param strings
-	 *            Strings.
-	 */
-	public static void infoColouredSeparator(int coloursToUse, boolean blackLastString
+	void infoColouredSeparator(int coloursToUse, boolean blackLastString
 			, String separator, String... strings)
 	{
 		if (strings.length == 0)
@@ -453,40 +338,12 @@ public class Logger
 		info(entry, coloursToUse);
 	}
 
-	/**
-	 * Post this string using {@link #infoColouredSequence(int, String, String, SequenceOption...)} after splitting it using
-	 * the separator passed. It forwards the {@link #defaultNumberOfColours}.
-	 *
-	 * @param separator
-	 *            Separator.
-	 * @param string
-	 *            String.
-	 * @param options
-	 *            Options list accepts 'removal of separator' (default false), 'colour last string',
-	 *            and 'black last string' flags.
-	 *            The defaults {@link #defaultBlackLastString} for latter two if neither is passed.
-	 */
-	public static void infoColouredSequence(String separator, String string, SequenceOption... options)
+	void infoColouredSequence(String separator, String string, SequenceOption... options)
 	{
 		infoColouredSequence(defaultNumberOfColours, separator, string, options);
 	}
 
-	/**
-	 * Post this string using {@link #infoColouredSeparator(int, boolean, String, String...)} after splitting it using the
-	 * separator passed.
-	 *
-	 * @param coloursToUse
-	 *            Colours to use, -1 for max.
-	 * @param separator
-	 *            Separator.
-	 * @param string
-	 *            String.
-	 * @param optionsList
-	 *            Options list accepts 'removal of separator' (default false), 'colour last string',
-	 *            and 'black last string' flags.
-	 *            The defaults {@link #defaultBlackLastString} for latter two if neither is passed.
-	 */
-	public static void infoColouredSequence(int coloursToUse, String separator, String string
+	void infoColouredSequence(int coloursToUse, String separator, String string
 			, SequenceOption... optionsList)
 	{
 		List<SequenceOption> options = Arrays.asList(optionsList);
@@ -499,40 +356,25 @@ public class Logger
 	// #endregion Info posting.
 	//--------------------------------------------------------------------------------------
 
-	/**
-	 * Error log entry. You can use '`' character as to wrap words to be coloured black.
-	 *
-	 * @param entry
-	 *            Entry.
-	 */
-	public static synchronized void error(String entry)
+	void error(String entry)
 	{
-		// write the time stamp
 		postTimeStamp(false);
 
 		// append line label
-		AttributeSet style = getStyle(0, Style.BOLDITALIC, Color.RED);
-		GUI.append(new Entry("!! ERROR >> ", style));
+		tempStyle = attrPool.get("" + Options.getInstance().getFontSize() + Style.BOLDITALIC + RED);
+		gui.append("!! ERROR >> ", tempStyle);
 
 		// append the error
 		postError(entry);
 	}
 
-	/**
-	 * Error log entry. This will be posted one after the other in the same time-stamp.
-	 * You can use '`' character as to wrap words to be coloured black.
-	 *
-	 * @param entries
-	 *            Entries.
-	 */
-	public static synchronized void errors(String... entries)
+	void errors(String... entries)
 	{
-		// write the time stamp
 		postTimeStamp(false);
 
 		// append line label
-		AttributeSet style = getStyle(0, Style.BOLDITALIC, Color.RED);
-		GUI.append(new Entry("!! ERRORS !!\n", style));
+		tempStyle = attrPool.get("" + Options.getInstance().getFontSize() + Style.BOLDITALIC + RED);
+		gui.append("!! ERRORS !!\n", tempStyle);
 
 		// append the errors on new lines
 		for (String entry : entries)
@@ -542,47 +384,39 @@ public class Logger
 	}
 
 	// this method is the common process of posting entries for the two methods above.
-	private static synchronized void postError(String entry)
+	private synchronized void postError(String entry)
 	{
 		// split the entry into sections based on the delimiter '`'
 		String[] entries = entry.split("`");
 
-		AttributeSet style = getStyle(Style.PLAIN, Color.RED);
+		tempStyle = attrPool.get("" + Options.getInstance().getFontSize() + Style.PLAIN + RED);
 
 		// odd entries are the ones needing colour
 		for (int i = 0; i < entries.length; i++)
 		{
 			// reset style
-			style = getStyle(Style.PLAIN, Color.RED);
+			tempStyle = attrPool.get("" + Options.getInstance().getFontSize() + Style.PLAIN + RED);
 
 			if ((i % 2) == 1)
 			{
 				// post escaped entry using a different colour.
-				style = getStyle(Style.PLAIN);
+				tempStyle = attrPool.get("" + Options.getInstance().getFontSize() + Style.PLAIN + BLACK);
 			}
 
 			// add to log
-			GUI.append(new Entry(entries[i], style));
+			gui.append(entries[i], tempStyle);
 		}
 
 		// add a new line
-		GUI.append(new Entry("\n", style));
+		gui.append("\n", tempStyle);
 	}
 
-	/**
-	 * Exception log entry.
-	 *
-	 * @param exception
-	 *            the Exception.
-	 */
-	public static synchronized void except(Throwable exception)
+	void except(Throwable exception)
 	{
-		// write the time stamp, then the exception below it.
-
 		postTimeStamp(false);
 
-		AttributeSet style = getStyle(0, Style.BOLDITALIC, Color.RED);
-		GUI.append(new Entry("!! EXCEPTION !!\n", style));
+		tempStyle = attrPool.get("" + Options.getInstance().getFontSize() + Style.BOLDITALIC + RED);
+		gui.append("!! EXCEPTION !!\n", tempStyle);
 
 		// define how to handle the character in the stack trace.
 		PrintWriter exceptionWriter = new PrintWriter(new Writer()
@@ -600,11 +434,11 @@ public class Logger
 			@Override
 			public void flush() throws IOException
 			{
-				AttributeSet styleTemp = getStyle(0, Style.PLAIN, Color.RED);
+				tempStyle = attrPool.get("" + Options.getInstance().getFontSize() + Style.PLAIN + RED);
 
 				for (String line : lines)
 				{
-					GUI.append(new Entry(line, styleTemp));		// send to the logger.
+					gui.append(line, tempStyle);		// send to the logger.
 				}
 			}
 
@@ -618,7 +452,7 @@ public class Logger
 		exceptionWriter.flush();
 		exceptionWriter.close();
 
-		GUI.append(new Entry("\r", style));		// send to the logger.
+		gui.append("\r", tempStyle);		// send to the logger.
 	}
 
 	// ======================================================================================
@@ -626,12 +460,15 @@ public class Logger
 	// //////////////////////////////////////////////////////////////////////////////////////
 
 	// add to stylised history queue.
-	static void addToHistory(String entry, AttributeSet style)
+	void addToHistory(String entry, AttributeSet style)
 	{
 		try
 		{
-			historyTextQueue.put(entry);
-			historyAttributeQueue.put(style);
+			synchronized (historyTextQueue)
+			{
+				historyTextQueue.put(entry);
+				historyAttributeQueue.put(style);
+			}
 		}
 		catch (Exception e)
 		{
@@ -644,41 +481,35 @@ public class Logger
 	//======================================================================================
 
 	/**
-	 * Capture {@link System#out} or {@link System#err}. Useful for saving the output to file, or minimising the console to tray.
+	 * Capture sysout.
 	 */
-	public static void captureSysOut()
+	public void captureSysOut()
 	{
 		System.setOut(new PrintStreamCapturer(System.out, OUT));
 		System.setErr(new PrintStreamCapturer(System.err, ERROR));
 	}
 
 	// post using a single colour, and prefix with 'Stream:'. Used by PrintStreamCapturer.
-	static void stream(String text)
+	void stream(String text)
 	{
-		// write the time stamp, then the entry next to it.
-
-		// time-stamp
-		postTimeStamp(GUI.isShowOnlyErrors());
+		postTimeStamp(Options.getInstance().isShowOnlyErrors());
 
 		// line label
-		AttributeSet style = getStyle(0, Style.BOLDITALIC, VIOLET);
-		GUI.append(new Entry("Stream: ", style, GUI.isShowOnlyErrors()));
+		tempStyle = attrPool.get("" + Options.getInstance().getFontSize() + Style.BOLDITALIC + VIOLET);
+		gui.append("Stream: ", tempStyle, Options.getInstance().isShowOnlyErrors());
 
 		// append the entries on new lines using number of colours passed.
 		postEntry(text, 0);
 	}
 
 	// post using a red colour, and prefix with '!! Stream:'. Used by PrintStreamCapturer.
-	static void streamError(String text)
+	void streamError(String text)
 	{
-		// write the time stamp, then the entry next to it.
-
-		// time-stamp
 		postTimeStamp(false);
 
 		// append line label
-		AttributeSet style = getStyle(0, Style.BOLDITALIC, Color.RED);
-		GUI.append(new Entry("!! Stream: ", style));
+		tempStyle = attrPool.get("" + Options.getInstance().getFontSize() + Style.BOLDITALIC + RED);
+		gui.append("!! Stream: ", tempStyle);
 
 		// append the entries on new lines using number of colours passed.
 		postError(text);
@@ -693,35 +524,35 @@ public class Logger
 	// ======================================================================================
 
 	/* post time stamp to log. */
-	private static synchronized void postTimeStamp(boolean saveOnly)
+	private synchronized void postTimeStamp(boolean saveOnly)
 	{
 //		postDateIfChanged();
 
 		// post date in light colour because it's repeated too much, so it becomes distracting.
-		AttributeSet style = getStyle(0, Style.PLAIN, new Color(180, 180, 180));
-		GUI.append(new Entry(getDate() + " ", style, saveOnly));
+		tempStyle = attrPool.get("" + Options.getInstance().getFontSize() + Style.PLAIN + GREY);
+		gui.append(getDate() + " ", tempStyle, saveOnly);
 
 		// post time in black.
-		style = getStyle(Style.PLAIN);
-		GUI.append(new Entry(getTime() + " ", style, saveOnly));
+		tempStyle = attrPool.get("" + Options.getInstance().getFontSize() + Style.PLAIN + BLACK);
+		gui.append(getTime() + " ", tempStyle, saveOnly);
 	}
 
 	/* create a current date string. */
-	private static String getDate()
+	private String getDate()
 	{
 		return new SimpleDateFormat("dd/MMM/yy").format(new Date()) /* DateFormat.getDateInstance().format(new Date()) */;
 	}
 
 	/* Create a current time string. */
-	private static String getTime()
+	private String getTime()
 	{
 		return new SimpleDateFormat("hh:mm:ss aa").format(new Date());
 	}
 
 	// convenience method
-	private static AttributeSet getStyle(Style style, Color... colour)
+	private AttributeSet getStyle(Style style, Color... colour)
 	{
-		return getStyle(GUI.getFontSize(), style, colour);
+		return getStyle(Options.getInstance().getFontSize(), style, colour);
 	}
 
 	/*
@@ -730,10 +561,10 @@ public class Logger
 	 *
 	 * Credit: Philip Isenhour (http://javatechniques.com/blog/setting-jtextpane-font-and-color/)
 	 */
-	private static AttributeSet getStyle(int size, Style style, Color... colour)
+	private AttributeSet getStyle(int size, Style style, Color... colour)
 	{
 		// if nothing is displayed, then no style is needed.
-		if (GUI.textPane == null)
+		if (GUI.getInstance().getTextPane() == null)
 		{
 			return null;
 		}
@@ -742,15 +573,15 @@ public class Logger
 		// should ensure that we do not wipe out any existing attributes
 		// (such as alignment or other paragraph attributes) currently
 		// set on the text area.
-		synchronized (logAttributesLock)
+		synchronized (GUI.getInstance().getLogAttributesLock())
 		{
-			MutableAttributeSet attributes = GUI.textPane.getInputAttributes();
+			MutableAttributeSet attributes = GUI.getInstance().getTextPane().getInputAttributes();
 
-			Font font = new Font(Logger.font
-					, ((style == Style.BOLD) ? Font.BOLD : 0)
-							+ ((style == Style.ITALIC) ? Font.ITALIC : 0)
+			Font font = new Font(this.font
+					, ((style == Style.BOLD) ? Font.BOLD : 0)/*
+							+ ((style == Style.ITALIC) ? Font.ITALIC : 0)*/
 							+ ((style == Style.BOLDITALIC) ? Font.ITALIC + Font.BOLD : 0)
-					, (size <= 0) ? GUI.getFontSize() : size);
+					, (size <= 0) ? Options.getInstance().getFontSize() : size);
 
 			// Set the font family, size, and style, based on properties of
 			// the Font object. Note that JTextPane supports a number of
@@ -769,32 +600,24 @@ public class Logger
 	}
 
 	// convert text and style to HTML.
-	private static String getHTML(String text, AttributeSet style)
+	private String getHTML(String text, AttributeSet style)
 	{
-		// use to convert text to HTML
-		JTextPane conversionPane = new JTextPane();
-		conversionPane.setEditorKit(new HTMLEditorKit());
+		conversionPane.setText("");
 
 		try
 		{
-			MutableAttributeSet attributes = conversionPane.getInputAttributes();
-			attributes.removeAttribute(StyleConstants.FontFamily);
-			attributes.removeAttribute(StyleConstants.FontSize);
-			attributes.removeAttribute(StyleConstants.Italic);
-			attributes.removeAttribute(StyleConstants.Bold);
-			attributes.removeAttribute(StyleConstants.Foreground);
-			attributes.addAttribute(StyleConstants.FontFamily, style.getAttribute(StyleConstants.FontFamily));
-			attributes.addAttribute(StyleConstants.FontSize, 8);
-			attributes.addAttribute(StyleConstants.Italic, style.getAttribute(StyleConstants.Italic));
-			attributes.addAttribute(StyleConstants.Bold, style.getAttribute(StyleConstants.Bold));
-			attributes.addAttribute(StyleConstants.Foreground, style.getAttribute(StyleConstants.Foreground));
+			htmlAttributes.addAttribute(StyleConstants.FontFamily, style.getAttribute(StyleConstants.FontFamily));
+			htmlAttributes.addAttribute(StyleConstants.FontSize, 8);
+			htmlAttributes.addAttribute(StyleConstants.Italic, style.getAttribute(StyleConstants.Italic));
+			htmlAttributes.addAttribute(StyleConstants.Bold, style.getAttribute(StyleConstants.Bold));
+			htmlAttributes.addAttribute(StyleConstants.Foreground, style.getAttribute(StyleConstants.Foreground));
 
 			// replace characters that aren't parsed by the HTML panel!!!
 			// add the plain text to an HTML editor to convert the text to a stylised HTML.
 			conversionPane.getDocument().insertString(conversionPane.getDocument().getLength()
 					, text.replace("\n", "`new_line`").replace("\t", "`tab`")
 							.replace(" ", "`space`")
-					, attributes);
+					, htmlAttributes);
 		}
 		catch (BadLocationException e)
 		{
@@ -821,7 +644,7 @@ public class Logger
 	/**
 	 * Save as html.
 	 */
-	public static void saveAsHTML()
+	public void saveAsHTML()
 	{
 		if ( !initialised)
 		{
@@ -837,43 +660,38 @@ public class Logger
 			return;
 		}
 
-		Path file = chosenFolder.resolve("log_file_-_" + File.getFileStamp() + ".html");
+		Path file = chosenFolder.resolve("log_file_-_" + File.getInstance().getFileStamp() + ".html");
 
 		new Thread(() ->
 		{
-			try (Writer writer = new OutputStreamWriter(Files.newOutputStream(file)))
+			try
 			{
-				try
+				synchronized (historyTextQueue)
 				{
-					// this operation takes a LONG time if the log is big enough.
-				GUI.showMessage("Saving as HTML to file '" + file + "'. You will be notified when it's done ...");
+					File.getInstance().flush();
+					Files.copy(File.getInstance().getHtmlFile(), file);
 
-				synchronized (historyStylised)
-				{
-					writer.write("<html><body>"
-							+ historyStylised.parallelStream().reduce((e1, e2) -> e1 + e2).orElse("")
-							+ "</html></body>");
+					try (Writer writer = new OutputStreamWriter(Files.newOutputStream(file, StandardOpenOption.APPEND)))
+					{
+						writer.write("\n</html></body>");
+					}
+					catch (IOException e)
+					{
+						e.printStackTrace();
+					}
 				}
-
-				GUI.showMessage("Finished saving as HTML to file '" + file + "'.");
 			}
-			catch (Exception e)
+			catch (IOException e)
 			{
 				e.printStackTrace();
 			}
-		}
-		catch (IOException e)
-		{
-			Logger.except(e);
-			e.printStackTrace();
-		}
-	}	).start();
+		}).start();
 	}
 
 	/**
 	 * Save as txt.
 	 */
-	public static void saveAsTxt()
+	public void saveAsTxt()
 	{
 		if ( !initialised)
 		{
@@ -890,18 +708,17 @@ public class Logger
 		}
 
 		// get the full path of the file, using the parent, and a time stamp.
-		Path file = chosenFolder.resolve("log_file_-_" + File.getFileStamp() + ".txt");
+		Path file = chosenFolder.resolve("log_file_-_" + File.getInstance().getFileStamp() + ".txt");
 
 		// copy the already existing log file
 		new Thread(() ->
 		{
 			try
 			{
-				Files.copy(File.logFile, file);
+				Files.copy(File.getInstance().getTextFile(), file);
 			}
 			catch (Exception e)
 			{
-				Logger.except(e);
 				e.printStackTrace();
 			}
 		}).start();
@@ -912,19 +729,19 @@ public class Logger
 	 *
 	 * @return Local folder
 	 */
-	private static Path chooseFolder()
+	private Path chooseFolder()
 	{
-		if (Files.notExists(getLastDirectory()))
+		if (Files.notExists(Paths.get(Options.getInstance().getLastDirectory())))
 		{
-			setLastDirectory(Paths.get(System.getProperty("user.home")));
+			Options.getInstance().setLastDirectory(System.getProperty("user.home"));
 		}
 
 		// only choose directories.
-		JFileChooser chooser = new JFileChooser(getLastDirectory().toString());
+		JFileChooser chooser = new JFileChooser(Options.getInstance().getLastDirectory());
 		chooser.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY);
 
 		// show dialogue
-		int result = chooser.showOpenDialog(GUI.frame);
+		int result = chooser.showOpenDialog(GUI.getInstance().getFrame());
 		java.io.File selectedFolder = chooser.getSelectedFile();
 
 		// if a folder was not chosen ...
@@ -933,9 +750,9 @@ public class Logger
 			return null;
 		}
 
-		setLastDirectory(Paths.get(selectedFolder.toURI()));
+		Options.getInstance().setLastDirectory(selectedFolder.toString());
 
-		return getLastDirectory();
+		return selectedFolder.toPath();
 	}
 
 	//======================================================================================
@@ -947,50 +764,35 @@ public class Logger
 	//======================================================================================
 
 	/**
-	 * @return the captureConsole
+	 * @return the initialised
 	 */
-	public static boolean isCaptureConsole()
+	public boolean isInitialised()
 	{
-		return captureConsole;
+		return initialised;
 	}
 
 	/**
-	 * @param captureConsole
-	 *            the captureConsole to set
+	 * @param initialised
+	 *            the initialised to set
 	 */
-	public static void setCaptureConsole(boolean captureConsole)
+	public void setInitialised(boolean initialised)
 	{
-		if (captureConsole)
-		{
-			captureSysOut();
-		}
-
-		Logger.captureConsole = captureConsole;
-	}
-
-	/**
-	 * @return the lastDirectory
-	 */
-	public static Path getLastDirectory()
-	{
-		return lastDirectory;
-	}
-
-	/**
-	 * @param lastDirectory
-	 *            the lastDirectory to set
-	 */
-	public static void setLastDirectory(Path lastDirectory)
-	{
-		Logger.lastDirectory = lastDirectory;
+		this.initialised = initialised;
 	}
 
 	//======================================================================================
 	// #endregion Getters and setters.
 	////////////////////////////////////////////////////////////////////////////////////////
 
-	// static class!
-	private Logger()
+	/**
+	 * @return the gui
+	 */
+	public GUI getGui()
+	{
+		return gui;
+	}
+
+	Logger()
 	{}
 
 }
@@ -1010,7 +812,7 @@ class PrintStreamCapturer extends PrintStream
 	/**
 	 * The Enum CaptureType.
 	 */
-	public enum CaptureType
+	public static enum CaptureType
 	{
 
 		/** Error. */
@@ -1028,7 +830,7 @@ class PrintStreamCapturer extends PrintStream
 
 	private void write(String str)
 	{
-		if ( !Logger.isCaptureConsole())
+		if ( !Options.getInstance().isCaptureConsole())
 		{
 			return;
 		}
@@ -1049,11 +851,11 @@ class PrintStreamCapturer extends PrintStream
 
 			if (captureType == OUT)
 			{
-				Logger.stream(s[i]);
+				Log.instance.stream(s[i]);
 			}
 			else if (captureType == ERROR)
 			{
-				Logger.streamError(s[i]);
+				Log.instance.streamError(s[i]);
 			}
 		}
 	}

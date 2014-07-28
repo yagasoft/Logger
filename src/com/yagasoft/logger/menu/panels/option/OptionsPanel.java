@@ -31,28 +31,25 @@ import javax.swing.JTextField;
 import javax.swing.SpringLayout;
 import javax.swing.SwingConstants;
 
-import com.yagasoft.logger.GUI;
-import com.yagasoft.logger.Logger;
-
 
 /**
  * The Class Options.
  */
 public class OptionsPanel extends JPanel implements ActionListener
 {
-	
+
 	/** Constant: SerialVersionUID. */
 	private static final long		serialVersionUID	= -1146451184847401905L;
-	
+
 	/** The frame to include this options panel. */
 	private JFrame					frame;
-	
+
 	/** Button ok. */
 	private JButton					buttonOk;
-	
+
 	/** Button cancel. */
 	private JButton					buttonCancel;
-	
+
 	/** Listeners. */
 	private Set<IOptionsListener>	listeners			= new HashSet<IOptionsListener>();
 	private JPanel					panelOptionsList;
@@ -65,7 +62,7 @@ public class OptionsPanel extends JPanel implements ActionListener
 	private JLabel					labelTextOptions;
 	private JLabel					labelWindowBehaviour;
 	private JCheckBox				checkBoxCaptureConsole;
-	
+
 	/**
 	 * Create the panel.
 	 */
@@ -73,25 +70,25 @@ public class OptionsPanel extends JPanel implements ActionListener
 	{
 		initGUI();
 	}
-	
+
 	/**
 	 * Inits the gui.
 	 */
 	private void initGUI()
 	{
 		setLayout(new BorderLayout(0, 0));
-		
+
 		// buttons
 		JPanel buttonsPanel = new JPanel(new FlowLayout());
-		
+
 		buttonOk = new JButton("OK");
 		buttonOk.addActionListener(this);
 		buttonsPanel.add(buttonOk);
-		
+
 		buttonCancel = new JButton("Cancel");
 		buttonCancel.addActionListener(this);
 		buttonsPanel.add(buttonCancel);
-		
+
 		add(buttonsPanel, BorderLayout.SOUTH);
 		//
 		panelOptionsList = new JPanel();
@@ -118,7 +115,7 @@ public class OptionsPanel extends JPanel implements ActionListener
 				panelOptionsList);
 		panelOptionsListSpringLayout.putConstraint(SpringLayout.EAST, textFieldNumEntries, -10, SpringLayout.EAST,
 				panelOptionsList);
-		textFieldNumEntries.setText(GUI.getMaxEntries() + "");
+		textFieldNumEntries.setText(Options.getInstance().getNumberOfEntries() + "");
 		panelOptionsList.add(textFieldNumEntries);
 		textFieldNumEntries.setColumns(10);
 		//
@@ -133,12 +130,12 @@ public class OptionsPanel extends JPanel implements ActionListener
 		panelOptionsListSpringLayout.putConstraint(SpringLayout.WEST, textFieldFontSize, 6, SpringLayout.EAST, labelFontSize);
 		panelOptionsListSpringLayout
 				.putConstraint(SpringLayout.EAST, textFieldFontSize, -23, SpringLayout.EAST, panelOptionsList);
-		textFieldFontSize.setText(GUI.getFontSize() + "");
+		textFieldFontSize.setText(Options.getInstance().getFontSize() + "");
 		panelOptionsList.add(textFieldFontSize);
 		textFieldFontSize.setColumns(10);
 		//
 		checkBoxWrapText = new JCheckBox("Wrap text");
-		checkBoxWrapText.setSelected(GUI.isWrap());
+		checkBoxWrapText.setSelected(Options.getInstance().isWrap());
 		panelOptionsListSpringLayout
 				.putConstraint(SpringLayout.NORTH, checkBoxWrapText, 3, SpringLayout.SOUTH, textFieldFontSize);
 		panelOptionsListSpringLayout.putConstraint(SpringLayout.WEST, checkBoxWrapText, 41, SpringLayout.WEST, panelOptionsList);
@@ -146,7 +143,7 @@ public class OptionsPanel extends JPanel implements ActionListener
 		//
 		checkBoxHideOnClose = new JCheckBox("Hide on close");
 		panelOptionsListSpringLayout.putConstraint(SpringLayout.WEST, checkBoxHideOnClose, 0, SpringLayout.WEST, labelNumEntries);
-		checkBoxHideOnClose.setSelected(GUI.isHideOnClose());
+		checkBoxHideOnClose.setSelected(Options.getInstance().isHideOnClose());
 		panelOptionsList.add(checkBoxHideOnClose);
 		//
 		labelWindowBehaviour = new JLabel("Behaviour:");
@@ -157,7 +154,7 @@ public class OptionsPanel extends JPanel implements ActionListener
 		panelOptionsList.add(labelWindowBehaviour);
 		//
 		checkBoxCaptureConsole = new JCheckBox("Capture console");
-		checkBoxCaptureConsole.setSelected(Logger.isCaptureConsole());
+		checkBoxCaptureConsole.setSelected(Options.getInstance().isCaptureConsole());
 		panelOptionsListSpringLayout.putConstraint(SpringLayout.NORTH, checkBoxHideOnClose, 6, SpringLayout.SOUTH,
 				checkBoxCaptureConsole);
 		panelOptionsListSpringLayout.putConstraint(SpringLayout.NORTH, checkBoxCaptureConsole, 6, SpringLayout.SOUTH,
@@ -165,11 +162,11 @@ public class OptionsPanel extends JPanel implements ActionListener
 		panelOptionsListSpringLayout.putConstraint(SpringLayout.WEST, checkBoxCaptureConsole, 0, SpringLayout.WEST,
 				labelNumEntries);
 		panelOptionsList.add(checkBoxCaptureConsole);
-		
+
 		//
 		panelOptionsList.setPreferredSize(new Dimension(160, 175));
 	}
-	
+
 	/**
 	 * @see java.awt.event.ActionListener#actionPerformed(java.awt.event.ActionEvent)
 	 */
@@ -186,21 +183,20 @@ public class OptionsPanel extends JPanel implements ActionListener
 			frame.dispatchEvent(new WindowEvent(frame, WindowEvent.WINDOW_CLOSING));
 		}
 	}
-	
+
 	/**
 	 * Apply options to the application.
 	 */
 	private void applyOptions()
 	{
 		Options options = Options.getInstance();
-		options.numberOfEntries = Integer.parseInt(textFieldNumEntries.getText());
-		options.fontSize = Integer.parseInt(textFieldFontSize.getText());
-		options.wrap = checkBoxWrapText.isSelected();
-		options.hideOnClose = checkBoxHideOnClose.isSelected();
-		options.captureConsole = checkBoxCaptureConsole.isSelected();
-		options.applyOptions();
+		options.setNumberOfEntries(Integer.parseInt(textFieldNumEntries.getText()));
+		options.setFontSize(Integer.parseInt(textFieldFontSize.getText()));
+		options.setWrap(checkBoxWrapText.isSelected());
+		options.setHideOnClose(checkBoxHideOnClose.isSelected());
+		options.setCaptureConsole(checkBoxCaptureConsole.isSelected());
 	}
-	
+
 	/**
 	 * Gets the frame.
 	 *
@@ -210,7 +206,7 @@ public class OptionsPanel extends JPanel implements ActionListener
 	{
 		return frame;
 	}
-	
+
 	/**
 	 * Sets the frame.
 	 *

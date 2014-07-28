@@ -29,7 +29,7 @@ import javax.swing.JScrollPane;
 import javax.swing.JTextArea;
 import javax.swing.SwingConstants;
 
-import com.yagasoft.logger.Logger;
+import com.yagasoft.logger.Log;
 
 
 /**
@@ -37,36 +37,36 @@ import com.yagasoft.logger.Logger;
  */
 public class AboutPanel extends JPanel
 {
-
+	
 	/** Constant: SerialVersionUID. */
 	private static final long	serialVersionUID	= -749076089730034103L;
-
+	
 	/**
 	 * Create the panel.
 	 */
 	public AboutPanel()
 	{
-
+		
 		initGUI();
 	}
-
+	
 	/**
 	 * Build the 'About' panel..
 	 */
 	private void initGUI()
 	{
 		setLayout(new BorderLayout());
-
+		
 		// restrict size.
 		setPreferredSize(new Dimension(800, 400));
-
+		
 		// the title and version part.
-		String headerText = "Logger v" + Logger.VERSION + "\n";
+		String headerText = "Logger v" + Log.VERSION + "\n";
 		JLabel header = new JLabel(headerText);
 		header.setFont(new Font("Gabriola", Font.PLAIN, 35));
 		header.setBorder(BorderFactory.createLineBorder(Color.BLACK));
 		header.setHorizontalAlignment(SwingConstants.CENTER);
-
+		
 		// the license and credits part.
 		String license = "\nCopyright (C) 2011-" + (Calendar.getInstance().get(Calendar.YEAR)) + " by Ahmed Osama el-Sawalhy.\n"
 				+ "\n"
@@ -102,24 +102,24 @@ public class AboutPanel extends JPanel
 		String authors = "\tAhmed Osama el-Sawalhy\n";
 //		String creditsHeader = "\nCredits:\n";
 //		String credits = "\t.\n";
-
+		
 		// combine all the above.
 		String text = license + authorsHeader + authors/* + creditsHeader + credits*/;
 		JTextArea textArea = new JTextArea(text);
 		JScrollPane textAreaScrollPane = new JScrollPane(textArea);
 		textArea.setFont(new Font("Verdana", Font.BOLD, 13));
 		textArea.setEditable(false);
-
+		
 		// hyper-link to web-site.
 		JButton linkButton = new JButton("Go to web-site");
 		linkButton.addActionListener(event -> openWebSite("http://yagasoft.com"));
-
+		
 		// add to the panel.
 		add(header, BorderLayout.NORTH);
 		add(textAreaScrollPane, BorderLayout.CENTER);
 		add(linkButton, BorderLayout.SOUTH);
 	}
-
+	
 	/**
 	 * Open web site in the default browser.
 	 *
@@ -133,7 +133,7 @@ public class AboutPanel extends JPanel
 	private void openWebSite(String link)
 	{
 		Desktop desktop = Desktop.isDesktopSupported() ? Desktop.getDesktop() : null;
-
+		
 		if ((desktop != null) && desktop.isSupported(Desktop.Action.BROWSE))
 		{
 			try

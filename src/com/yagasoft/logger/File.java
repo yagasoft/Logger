@@ -29,93 +29,81 @@ import java.util.concurrent.LinkedBlockingQueue;
 final class File
 {
 
-	/* where the logs will be stored relative to project path. */
-	private static final Path					LOGS_FOLDER	= Paths.get(System.getProperty("user.dir") + "/var/logs/");
+	/* set when the log is accessible and ready. */
+	private boolean						initialised	= false;
 
-	/** set when the log is accessible and ready. */
-	public static boolean						initialised	= false;
+	private static File					instance;
+
+	/* where the logs will be stored relative to project path. */
+	private final Path					LOGS_FOLDER	= Paths.get(System.getProperty("user.dir") + "/var/logs/");
 
 	/* current log file path. */
-	static Path							logFile;
+	private Path						textFile;
+	private Path						htmlFile;
 
 	/* stream to log file. */
-	private static OutputStream					stream;
+	private OutputStream				textStream;
+	private OutputStream				htmlStream;
 
 	/* writer to log file. */
-	static OutputStreamWriter			writer;
+	private OutputStreamWriter			textWriter;
+	private OutputStreamWriter			htmlWriter;
 
-	private static LinkedBlockingQueue<String>	queue		= new LinkedBlockingQueue<String>();
+	private LinkedBlockingQueue<String>	textQueue	= new LinkedBlockingQueue<String>();
+	private LinkedBlockingQueue<String>	htmlQueue	= new LinkedBlockingQueue<String>();
 
-	static synchronized void initFile()
+	// get elapsed time since last physical write to file.
+	private long						lastFlush	= Calendar.getInstance().getTimeInMillis();
+	private long						currentTime	= Calendar.getInstance().getTimeInMillis();
+
+	private void initFile()
 	{
-		if (!GUI.initialised)
+		if (instance == null)
 		{
-			return;
-		}
-		
-		newLogFile();
+			newLogFile();
 
-		new Thread(() ->
-		{
-			// get elapsed time since last physical write to file.
-				long lastFlush = Calendar.getInstance().getTimeInMillis();
-				long currentTime = Calendar.getInstance().getTimeInMillis();
-
+			new Thread(() ->
+			{
 				while (true)
 				{
-					currentTime = Calendar.getInstance().getTimeInMillis();		// compare
-
-					try
-					{
-						// if a file was created and open ...
-						if (writer != null)
-						{
-							writer.write(queue.take().replace("\r", ""));
-
-							if ((currentTime - lastFlush) > 5000)
-							{
-								writer.flush();		// write entry to physical file.
-								lastFlush = Calendar.getInstance().getTimeInMillis();		// reset timer
-							}
-						}
-					}
-					catch (IOException | InterruptedException e)
-					{
-						Logger.initialised = false;
-
-						e.printStackTrace();
-						System.err.println("ERROR: Failed to write to log file!");
-					}
+					writeToDisk();
 				}
 			}).start();
+		}
 	}
 
 	/* create a new log file using the current date and time for its name. */
-	private static synchronized void newLogFile()
+	private void newLogFile()
 	{
 		try
 		{
 			Files.createDirectories(LOGS_FOLDER);		// make sure the log folder exists
+			textFile = Files.createFile(LOGS_FOLDER.resolve(getFileStamp() + ".log"));
+			textStream = Files.newOutputStream(textFile, StandardOpenOption.APPEND);
+			textWriter = new OutputStreamWriter(textStream);
 
-			logFile = Files.createFile(LOGS_FOLDER.resolve(getFileStamp() + ".log"));
-			stream = Files.newOutputStream(logFile, StandardOpenOption.APPEND);
-			writer = new OutputStreamWriter(stream);
+			htmlFile = Files.createFile(LOGS_FOLDER.resolve(getFileStamp() + ".html"));
+			htmlStream = Files.newOutputStream(htmlFile, StandardOpenOption.APPEND);
+			htmlWriter = new OutputStreamWriter(htmlStream);
+			htmlWriter.write("<html><body>\n");
+
 			initialised = true;
-
-			Logger.info("`Created` a `log file` at " + logFile.toAbsolutePath());
 		}
 		catch (IOException e)
 		{	// oops, don't bother with a log file for this session!
 			e.printStackTrace();
 
-			writer = null;
-			stream = null;
-			logFile = null;
+			textWriter = null;
+			textStream = null;
+			textFile = null;
 
-			Logger.initialised = false;
+			htmlWriter = null;
+			htmlStream = null;
+			htmlFile = null;
 
-			Logger.error("Failed to create log file!");
-			Logger.except(e);
+			e.printStackTrace();
+
+			initialised = false;
 		}
 	}
 
@@ -124,22 +112,48 @@ final class File
 	 *
 	 * @return the file stamp
 	 */
-	public static String getFileStamp()
+	public String getFileStamp()
 	{
 		return (new SimpleDateFormat("yyyy-MM-dd_HH-mm-ss")).format(new Date());
 	}
 
-	/* flush this text to log file. */
-	static void writeToFile(String text)
+	private void writeToDisk()
 	{
-		if ( !Logger.initialised || !initialised)
+		currentTime = Calendar.getInstance().getTimeInMillis();		// compare
+
+		try
+		{
+			// if a file was created and open ...
+			if ((textWriter != null) && (htmlWriter != null))
+			{
+				textWriter.write(textQueue.take().replace("\r", ""));
+				htmlWriter.write(htmlQueue.take().replace("\r", ""));
+
+				if ((currentTime - lastFlush) > 5000)
+				{
+					flush();
+					lastFlush = Calendar.getInstance().getTimeInMillis();		// reset timer
+				}
+			}
+		}
+		catch (IOException | InterruptedException e)
+		{
+			e.printStackTrace();
+			initialised = false;
+		}
+	}
+
+	/* flush this text to log file. */
+	void queueForWrite(String text)
+	{
+		if ( !initialised)
 		{
 			return;
 		}
 
 		try
 		{
-			queue.put(text);
+			textQueue.put(text);
 		}
 		catch (InterruptedException e)
 		{
@@ -147,7 +161,85 @@ final class File
 		}
 	}
 
-	// static class!
+	/* flush this text to log file. */
+	void writeToHTML(String text)
+	{
+		if ( !initialised)
+		{
+			return;
+		}
+
+		try
+		{
+			htmlQueue.put(text);
+		}
+		catch (InterruptedException e)
+		{
+			e.printStackTrace();
+		}
+	}
+
+	// write entries to physical file.
+	void flush()
+	{
+		try
+		{
+			textWriter.flush();
+			htmlWriter.flush();
+		}
+		catch (IOException e)
+		{
+			e.printStackTrace();
+		}
+	}
+
+	/**
+	 * @return the htmlFile
+	 */
+	public Path getHtmlFile()
+	{
+		return htmlFile;
+	}
+
+	/**
+	 * @param htmlFile
+	 *            the htmlFile to set
+	 */
+	public void setHtmlFile(Path htmlFile)
+	{
+		this.htmlFile = htmlFile;
+	}
+
+	/**
+	 * @return the textFile
+	 */
+	public Path getTextFile()
+	{
+		return textFile;
+	}
+
+	/**
+	 * @param textFile
+	 *            the textFile to set
+	 */
+	public void setTextFile(Path textFile)
+	{
+		this.textFile = textFile;
+	}
+
+	static File getInstance()
+	{
+		if (instance == null)
+		{
+			instance = new File();
+		}
+
+		return instance;
+	}
+
+	// Singleton!
 	private File()
-	{}
+	{
+		initFile();
+	}
 }

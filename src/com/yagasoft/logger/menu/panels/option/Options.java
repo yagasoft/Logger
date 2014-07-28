@@ -23,10 +23,8 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 
-import javax.swing.WindowConstants;
-
 import com.yagasoft.logger.GUI;
-import com.yagasoft.logger.Logger;
+import com.yagasoft.logger.Log;
 
 
 /**
@@ -36,66 +34,62 @@ import com.yagasoft.logger.Logger;
  */
 public final class Options implements Serializable
 {
-	
-	private static final long		serialVersionUID	= 2892595292752232935L;
-	
+
+	private static final long			serialVersionUID	= 2892595292752232935L;
+
 	/* where the logs will be stored relative to project path. */
-	private transient final Path	OPTIONS_FILE		= Paths.get(System.getProperty("user.dir") + "/var/options.dat");
-	
-	private static Options			instance;
-	
+	private static transient final Path	OPTIONS_FILE		= Paths.get(System.getProperty("user.dir") + "/var/options.dat");
+
+	private static Options				instance;
+
 	/** Number of entries. */
-	public Integer					numberOfEntries		= 500;
-	
+	private Integer						numberOfEntries		= 500;
+
 	/** Font size. */
-	public Integer					fontSize			= 12;
-	
+	private Integer						fontSize			= 12;
+
 	/** Wrap. */
-	public Boolean					wrap				= false;
-	
+	private Boolean						wrap				= false;
+
 	/** Hide on close. */
-	public Boolean					hideOnClose			= true;
-	
-	/** Action on close. */
-	public Integer					actionOnClose		= WindowConstants.HIDE_ON_CLOSE;
-	
-	/** Last directory. */
-	public String					lastDirectory		= System.getProperty("user.home");
-	
+	private Boolean						hideOnClose			= true;
+
 	/** Show only errors. */
-	public Boolean					showOnlyErrors		= false;
-	
+	private Boolean						showOnlyErrors		= false;
+
 	/** Capture console. */
-	public Boolean					captureConsole		= true;
-	
+	private Boolean						captureConsole		= true;
+
+	/** Last directory. */
+	private String						lastDirectory		= System.getProperty("user.home");
+
 	/**
 	 * Collect options from all over the application.
 	 */
 	public synchronized void collectOptions()
 	{
-		fontSize = GUI.getFontSize();
-		wrap = GUI.isWrap();
-		hideOnClose = GUI.isHideOnClose();
-		captureConsole = Logger.isCaptureConsole();
-		actionOnClose = GUI.getActionOnClose();
-		showOnlyErrors = GUI.isShowOnlyErrors();
-		lastDirectory = Logger.getLastDirectory().toString();
+		numberOfEntries = getNumberOfEntries();
+		fontSize = getFontSize();
+		wrap = isWrap();
+		hideOnClose = isHideOnClose();
+		showOnlyErrors = isShowOnlyErrors();
+		captureConsole = isCaptureConsole();
+		lastDirectory = getLastDirectory();
 	}
-	
+
 	/**
 	 * Apply options set to the application.
 	 */
 	public synchronized void applyOptions()
 	{
-		GUI.setMaxEntries(numberOfEntries);
-		GUI.setFontSize(fontSize);
-		GUI.setWrap(wrap);
-		GUI.setHideOnClose(hideOnClose);
-		GUI.setShowOnlyErrors(showOnlyErrors);
-		Logger.setLastDirectory(Paths.get(lastDirectory));
-		Logger.setCaptureConsole(captureConsole);
+		setNumberOfEntries(numberOfEntries);
+		setFontSize(fontSize);
+		setWrap(wrap);
+		setHideOnClose(hideOnClose);
+		setShowOnlyErrors(showOnlyErrors);
+		setCaptureConsole(captureConsole);
 	}
-	
+
 	/**
 	 * Load options from disk.
 	 */
@@ -106,33 +100,32 @@ public final class Options implements Serializable
 			applyOptions();
 			return;
 		}
-		
+
 		FileInputStream fileStream;		// incoming link to file.
 		ObjectInputStream objectStream;		// link to objects read from file.
-		Options options;
-		
+
 		try
 		{
 			fileStream = new FileInputStream(OPTIONS_FILE.toString());
 			objectStream = new ObjectInputStream(fileStream);
-			options = (Options) objectStream.readObject();
+			instance = (Options) objectStream.readObject();
 			objectStream.close();
-			
-			options.applyOptions();
+
+			instance.applyOptions();
 		}
 		catch (ClassNotFoundException | IOException e)
 		{
 			e.printStackTrace();
 		}
 	}
-	
+
 	/**
 	 * Save options to disk.
 	 */
 	public synchronized void saveOptions()
 	{
 		collectOptions();
-		
+
 		try
 		{
 			FileOutputStream fileStream = new FileOutputStream(OPTIONS_FILE.toString());
@@ -145,7 +138,7 @@ public final class Options implements Serializable
 			e.printStackTrace();
 		}
 	}
-	
+
 	/**
 	 * Gets the single instance of Options.
 	 *
@@ -157,22 +150,172 @@ public final class Options implements Serializable
 		{
 			instance = new Options();
 		}
-		
+
 		return instance;
 	}
-	
+
+	////////////////////////////////////////////////////////////////////////////////////////
+	// #region Getters and setters.
+	//======================================================================================
+
 	/**
-	 * Gets the single instance of Options.
-	 *
-	 * @param options
-	 *            the new instance
+	 * @return the numberOfEntries
 	 */
-	public static void setInstance(Options options)
+	public Integer getNumberOfEntries()
 	{
-		instance = options;
-		options.applyOptions();
+		return numberOfEntries;
 	}
-	
+
+	/**
+	 * @param numberOfEntries
+	 *            the numberOfEntries to set
+	 */
+	public void setNumberOfEntries(Integer numberOfEntries)
+	{
+		if ( !Log.instance.isInitialised() || (this.numberOfEntries == numberOfEntries))
+		{
+			this.numberOfEntries = numberOfEntries;
+			return;
+		}
+
+		this.numberOfEntries = numberOfEntries;
+
+		GUI.getInstance().trimLog();
+	}
+
+	/**
+	 * @return the fontSize
+	 */
+	public Integer getFontSize()
+	{
+		return fontSize;
+	}
+
+	/**
+	 * @param fontSize
+	 *            the fontSize to set
+	 */
+	public void setFontSize(Integer fontSize)
+	{
+		if ((fontSize < 10) || (fontSize > 25))
+		{
+			return;
+		}
+
+		if ( !Log.instance.isInitialised() || (this.fontSize == fontSize))
+		{
+			this.fontSize = fontSize;
+			return;
+		}
+
+		this.fontSize = fontSize;
+
+		GUI.getInstance().setFontSize(fontSize);
+	}
+
+	/**
+	 * @return the wrap
+	 */
+	public boolean isWrap()
+	{
+		return wrap;
+	}
+
+	/**
+	 * @param wrap
+	 *            the wrap to set
+	 */
+	public void setWrap(boolean wrap)
+	{
+		if ( !Log.instance.isInitialised() || (this.wrap == wrap))
+		{
+			this.wrap = wrap;
+			return;
+		}
+
+		this.wrap = wrap;
+
+		GUI.getInstance().setWrap(wrap);
+	}
+
+	/**
+	 * @return the hideOnClose
+	 */
+	public boolean isHideOnClose()
+	{
+		return hideOnClose;
+	}
+
+	/**
+	 * @param hideOnClose
+	 *            the hideOnClose to set
+	 */
+	public void setHideOnClose(boolean hideOnClose)
+	{
+		this.hideOnClose = hideOnClose;
+		GUI.getInstance().setHideOnClose(hideOnClose);
+	}
+
+	/**
+	 * @return the showOnlyErrors
+	 */
+	public boolean isShowOnlyErrors()
+	{
+		return showOnlyErrors;
+	}
+
+	/**
+	 * @param showOnlyErrors
+	 *            the showOnlyErrors to set
+	 */
+	public void setShowOnlyErrors(boolean showOnlyErrors)
+	{
+		this.showOnlyErrors = showOnlyErrors;
+	}
+
+	/**
+	 * @return the captureConsole
+	 */
+	public boolean isCaptureConsole()
+	{
+		return captureConsole;
+	}
+
+	/**
+	 * @param captureConsole
+	 *            the captureConsole to set
+	 */
+	public void setCaptureConsole(boolean captureConsole)
+	{
+		if ((this.captureConsole != captureConsole) && captureConsole)
+		{
+			Log.instance.captureSysOut();
+		}
+
+		this.captureConsole = captureConsole;
+	}
+
+	/**
+	 * @return the lastDirectory
+	 */
+	public String getLastDirectory()
+	{
+		return lastDirectory;
+	}
+
+	/**
+	 * @param lastDirectory
+	 *            the lastDirectory to set
+	 */
+	public void setLastDirectory(String lastDirectory)
+	{
+		this.lastDirectory = lastDirectory;
+	}
+
+	//======================================================================================
+	// #endregion Getters and setters.
+	////////////////////////////////////////////////////////////////////////////////////////
+
 	private Options()
 	{}
 }
