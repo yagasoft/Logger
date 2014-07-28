@@ -1,12 +1,12 @@
 /*
  * Copyright (C) 2011-2014 by Ahmed Osama el-Sawalhy
- *
+ * 
  *		The Modified MIT Licence (GPL v3 compatible)
  * 			Licence terms are in a separate file (LICENCE.md)
- *
+ * 
  *		Project/File: Logger/com.yagasoft.logger/Logger.java
- *
- *			Modified: 26-Jul-2014 (15:55:29)
+ * 
+ *			Modified: 28-Jul-2014 (03:22:32)
  *			   Using: Eclipse J-EE / JDK 8 / Windows 8.1 x64
  */
 
@@ -16,6 +16,8 @@ package com.yagasoft.logger;
 import static com.yagasoft.logger.Logger.SequenceOption.BLACK_LAST_STRING;
 import static com.yagasoft.logger.Logger.SequenceOption.COLOUR_LAST_STRING;
 import static com.yagasoft.logger.Logger.SequenceOption.REMOVE_SEPARATOR;
+import static com.yagasoft.logger.PrintStreamCapturer.CaptureType.ERROR;
+import static com.yagasoft.logger.PrintStreamCapturer.CaptureType.OUT;
 
 import java.awt.Color;
 import java.awt.Font;
@@ -25,6 +27,7 @@ import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.io.OutputStreamWriter;
+import java.io.PrintStream;
 import java.io.PrintWriter;
 import java.io.Writer;
 import java.nio.file.Files;
@@ -110,20 +113,20 @@ public class Logger
 	// a bit lighter than the one from the Color class.
 	private static final Color	BLUE						= new Color(35, 40, 210);
 	
-	private static final Color	ORANGE						= new Color(170, 90, 0);
-	private static final Color	LIGHT_BLUE					= new Color(0, 150, 150);
+	private static final Color	ORANGE						= new Color(150, 80, 0);
+	private static final Color	LIGHT_BLUE					= new Color(0, 120, 120);
 	
 	// a bit darker than the one from the Color class.
 	private static final Color	GREEN						= new Color(0, 140, 0);
 	
-	private static final Color	VIOLET						= new Color(150, 0, 255);
+	private static final Color	VIOLET						= new Color(120, 0, 200);
 	private static final Color	DARK_RED					= new Color(230, 0, 0);
 	
 	// a bit darker than the one from the Color class.
 	private static final Color	MAGENTA						= new Color(220, 0, 160);
 	
 	// colours to cycle through when displaying info with words wrapped in '`'.
-	private static Color[]		colours						= { BLUE, ORANGE, LIGHT_BLUE, GREEN, VIOLET, DARK_RED, MAGENTA };
+	private static Color[]		colours						= { BLUE, ORANGE, LIGHT_BLUE, VIOLET, DARK_RED, GREEN, MAGENTA };
 	
 	// #endregion Colours.
 	//--------------------------------------------------------------------------------------
@@ -310,7 +313,7 @@ public class Logger
 		
 		// line label
 		AttributeSet style = getStyle(0, Style.ITALIC, GREEN);
-		GUI.append("Info:   ", style);
+		GUI.append("Info: ", style);
 		
 		// append the entries on new lines using number of colours passed.
 		postEntry(entry, coloursToUse);
@@ -349,7 +352,7 @@ public class Logger
 		
 		// calculate number of colours to use. If passed, then use, else if -1 or not passed, then use default.
 		int numberOfColours = Arrays.stream(coloursToUse).findFirst().orElse(defaultNumberOfColours);
-		numberOfColours = (numberOfColours == -1) ? defaultNumberOfColours : numberOfColours;
+		numberOfColours = (numberOfColours == -1) ? colours.length : numberOfColours;
 		
 		AttributeSet style = getStyle(Style.PLAIN);
 		
@@ -513,15 +516,10 @@ public class Logger
 		
 		// append line label
 		AttributeSet style = getStyle(0, Style.BOLDITALIC, Color.RED);
-		GUI.append("!! ERROR >>   ", style);
+		GUI.append("!! ERROR >> ", style);
 		
 		// append the error
 		postError(entry);
-		
-		// add an extra label.
-		style = getStyle(Style.BOLDITALIC, Color.RED);
-		GUI.append("   << ERROR !!\n", style);
-		
 	}
 	
 	/**
@@ -644,6 +642,55 @@ public class Logger
 			e.printStackTrace();
 		}
 	}
+	
+	////////////////////////////////////////////////////////////////////////////////////////
+	// #region System stream capture.
+	//======================================================================================
+	
+	/**
+	 * Capture {@link System#out} or {@link System#err}. Useful for saving the output to file, or minimising the console to tray.
+	 */
+	public static void captureSysOut()
+	{
+		System.setOut(new PrintStreamCapturer(System.out, OUT));
+		System.setErr(new PrintStreamCapturer(System.err, ERROR));
+	}
+	
+	// post using a single colour, and prefix with 'Stream:'. Used by PrintStreamCapturer.
+	static void stream(String text)
+	{
+		// write the time stamp, then the entry next to it.
+		
+		// time-stamp
+		postTimeStamp();
+		
+		// line label
+		AttributeSet style = getStyle(0, Style.ITALIC, VIOLET);
+		GUI.append("Stream: ", style);
+		
+		// append the entries on new lines using number of colours passed.
+		postEntry(text, 0);
+	}
+	
+	// post using a red colour, and prefix with '!! Stream:'. Used by PrintStreamCapturer.
+	static void streamError(String text)
+	{
+		// write the time stamp, then the entry next to it.
+		
+		// time-stamp
+		postTimeStamp();
+		
+		// append line label
+		AttributeSet style = getStyle(0, Style.BOLDITALIC, Color.RED);
+		GUI.append("!! Stream: ", style);
+		
+		// append the entries on new lines using number of colours passed.
+		postError(text);
+	}
+	
+	//======================================================================================
+	// #endregion System stream capture.
+	////////////////////////////////////////////////////////////////////////////////////////
 	
 	// //////////////////////////////////////////////////////////////////////////////////////
 	// #region Text methods.
@@ -978,4 +1025,275 @@ public class Logger
 	private Logger()
 	{}
 	
+}
+
+
+/**
+ * <p>
+ * A PrintStreamCapturer is passed to {@link System#setOut(PrintStream)}. It redirects the console output stream to this logger.
+ * </p>
+ * Credit: Joffrey (<a href="http://stackoverflow.com">StackOverflow</a>)
+ */
+class PrintStreamCapturer extends PrintStream
+{
+	
+	private CaptureType	captureType	= OUT;
+	
+	/**
+	 * The Enum CaptureType.
+	 */
+	public enum CaptureType
+	{
+		
+		/** Error. */
+		ERROR,
+		
+		/** Out. */
+		OUT
+	}
+	
+	public PrintStreamCapturer(PrintStream capturedStream, CaptureType type)
+	{
+		super(capturedStream);
+		captureType = type;
+	}
+	
+	private void write(String str)
+	{
+		String[] s = str.split("\n");
+		
+		if (s.length == 0)
+		{
+			return;
+		}
+		
+		for (int i = 0; i < s.length; i++)
+		{
+			if ((i >= (s.length - 1)) && s[i].equals(""))
+			{
+				continue;
+			}
+			
+			if (captureType == OUT)
+			{
+				Logger.stream(s[i]);
+			}
+			else if (captureType == ERROR)
+			{
+				Logger.streamError(s[i]);
+			}
+		}
+	}
+	
+	private void newLine()
+	{
+		write("\n");
+	}
+	
+	@Override
+	public void print(boolean b)
+	{
+		synchronized (this)
+		{
+			super.print(b);
+			write(String.valueOf(b));
+		}
+	}
+	
+	@Override
+	public void print(char c)
+	{
+		synchronized (this)
+		{
+			super.print(c);
+			write(String.valueOf(c));
+		}
+	}
+	
+	@Override
+	public void print(char[] s)
+	{
+		synchronized (this)
+		{
+			super.print(s);
+			write(String.valueOf(s));
+		}
+	}
+	
+	@Override
+	public void print(double d)
+	{
+		synchronized (this)
+		{
+			super.print(d);
+			write(String.valueOf(d));
+		}
+	}
+	
+	@Override
+	public void print(float f)
+	{
+		synchronized (this)
+		{
+			super.print(f);
+			write(String.valueOf(f));
+		}
+	}
+	
+	@Override
+	public void print(int i)
+	{
+		synchronized (this)
+		{
+			super.print(i);
+			write(String.valueOf(i));
+		}
+	}
+	
+	@Override
+	public void print(long l)
+	{
+		synchronized (this)
+		{
+			super.print(l);
+			write(String.valueOf(l));
+		}
+	}
+	
+	@Override
+	public void print(Object o)
+	{
+		synchronized (this)
+		{
+			super.print(o);
+			write(String.valueOf(o));
+		}
+	}
+	
+	@Override
+	public void print(String s)
+	{
+		synchronized (this)
+		{
+			super.print(s);
+			if (s == null)
+			{
+				write("null");
+			}
+			else
+			{
+				write(s);
+			}
+		}
+	}
+	
+	@Override
+	public void println()
+	{
+		synchronized (this)
+		{
+			newLine();
+			super.println();
+		}
+	}
+	
+	@Override
+	public void println(boolean x)
+	{
+		synchronized (this)
+		{
+			print(x);
+			newLine();
+			super.println();
+		}
+	}
+	
+	@Override
+	public void println(char x)
+	{
+		synchronized (this)
+		{
+			print(x);
+			newLine();
+			super.println();
+		}
+	}
+	
+	@Override
+	public void println(int x)
+	{
+		synchronized (this)
+		{
+			print(x);
+			newLine();
+			super.println();
+		}
+	}
+	
+	@Override
+	public void println(long x)
+	{
+		synchronized (this)
+		{
+			print(x);
+			newLine();
+			super.println();
+		}
+	}
+	
+	@Override
+	public void println(float x)
+	{
+		synchronized (this)
+		{
+			print(x);
+			newLine();
+			super.println();
+		}
+	}
+	
+	@Override
+	public void println(double x)
+	{
+		synchronized (this)
+		{
+			print(x);
+			newLine();
+			super.println();
+		}
+	}
+	
+	@Override
+	public void println(char x[])
+	{
+		synchronized (this)
+		{
+			print(x);
+			newLine();
+			super.println();
+		}
+	}
+	
+	@Override
+	public void println(String x)
+	{
+		synchronized (this)
+		{
+			print(x);
+			newLine();
+			super.println();
+		}
+	}
+	
+	@Override
+	public void println(Object x)
+	{
+		String s = String.valueOf(x);
+		synchronized (this)
+		{
+			print(s);
+			newLine();
+			super.println();
+		}
+	}
 }
