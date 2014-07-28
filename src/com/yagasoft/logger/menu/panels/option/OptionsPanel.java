@@ -32,6 +32,7 @@ import javax.swing.SpringLayout;
 import javax.swing.SwingConstants;
 
 import com.yagasoft.logger.GUI;
+import com.yagasoft.logger.Logger;
 
 
 /**
@@ -63,6 +64,7 @@ public class OptionsPanel extends JPanel implements ActionListener
 	private JCheckBox				checkBoxHideOnClose;
 	private JLabel					labelTextOptions;
 	private JLabel					labelWindowBehaviour;
+	private JCheckBox				checkBoxCaptureConsole;
 	
 	/**
 	 * Create the panel.
@@ -143,21 +145,29 @@ public class OptionsPanel extends JPanel implements ActionListener
 		panelOptionsList.add(checkBoxWrapText);
 		//
 		checkBoxHideOnClose = new JCheckBox("Hide on close");
+		panelOptionsListSpringLayout.putConstraint(SpringLayout.WEST, checkBoxHideOnClose, 0, SpringLayout.WEST, labelNumEntries);
 		checkBoxHideOnClose.setSelected(GUI.isHideOnClose());
-		panelOptionsListSpringLayout.putConstraint(SpringLayout.WEST, checkBoxHideOnClose, 31, SpringLayout.WEST,
-				panelOptionsList);
-		panelOptionsListSpringLayout.putConstraint(SpringLayout.SOUTH, checkBoxHideOnClose, -1, SpringLayout.SOUTH,
-				panelOptionsList);
 		panelOptionsList.add(checkBoxHideOnClose);
 		//
-		labelWindowBehaviour = new JLabel("Window behaviour:");
+		labelWindowBehaviour = new JLabel("Behaviour:");
 		panelOptionsListSpringLayout.putConstraint(SpringLayout.NORTH, labelWindowBehaviour, 12, SpringLayout.SOUTH,
 				checkBoxWrapText);
 		panelOptionsListSpringLayout.putConstraint(SpringLayout.WEST, labelWindowBehaviour, 0, SpringLayout.WEST,
 				labelTextOptions);
 		panelOptionsList.add(labelWindowBehaviour);
+		//
+		checkBoxCaptureConsole = new JCheckBox("Capture console");
+		checkBoxCaptureConsole.setSelected(Logger.isCaptureConsole());
+		panelOptionsListSpringLayout.putConstraint(SpringLayout.NORTH, checkBoxHideOnClose, 6, SpringLayout.SOUTH,
+				checkBoxCaptureConsole);
+		panelOptionsListSpringLayout.putConstraint(SpringLayout.NORTH, checkBoxCaptureConsole, 6, SpringLayout.SOUTH,
+				labelWindowBehaviour);
+		panelOptionsListSpringLayout.putConstraint(SpringLayout.WEST, checkBoxCaptureConsole, 0, SpringLayout.WEST,
+				labelNumEntries);
+		panelOptionsList.add(checkBoxCaptureConsole);
 		
-		panelOptionsList.setPreferredSize(new Dimension(160, 140));
+		//
+		panelOptionsList.setPreferredSize(new Dimension(160, 175));
 	}
 	
 	/**
@@ -168,58 +178,27 @@ public class OptionsPanel extends JPanel implements ActionListener
 	{
 		if (e.getSource() == buttonCancel)
 		{
-			clearListeners();
 			frame.dispatchEvent(new WindowEvent(frame, WindowEvent.WINDOW_CLOSING));
 		}
 		else if (e.getSource() == buttonOk)
 		{
-			notifyListeners();
-			clearListeners();
+			applyOptions();
 			frame.dispatchEvent(new WindowEvent(frame, WindowEvent.WINDOW_CLOSING));
 		}
 	}
 	
 	/**
-	 * Adds the listener.
-	 *
-	 * @param listener
-	 *            Listener.
+	 * Apply options to the application.
 	 */
-	public void addListener(IOptionsListener listener)
+	private void applyOptions()
 	{
-		listeners.add(listener);
-	}
-	
-	/**
-	 * Notify listeners.
-	 */
-	private void notifyListeners()
-	{
-		listeners.parallelStream()
-				.forEach(listener -> listener.optionsSet(
-						new Options(Integer.parseInt(textFieldNumEntries.getText())
-								, Integer.parseInt(textFieldFontSize.getText())
-								, checkBoxWrapText.isSelected()
-								, checkBoxHideOnClose.isSelected())));
-	}
-	
-	/**
-	 * Removes the listener.
-	 *
-	 * @param listener
-	 *            Listener.
-	 */
-	public void removeListener(IOptionsListener listener)
-	{
-		listeners.remove(listener);
-	}
-	
-	/**
-	 * Clear listeners.
-	 */
-	public void clearListeners()
-	{
-		listeners.clear();
+		Options options = Options.getInstance();
+		options.numberOfEntries = Integer.parseInt(textFieldNumEntries.getText());
+		options.fontSize = Integer.parseInt(textFieldFontSize.getText());
+		options.wrap = checkBoxWrapText.isSelected();
+		options.hideOnClose = checkBoxHideOnClose.isSelected();
+		options.captureConsole = checkBoxCaptureConsole.isSelected();
+		options.applyOptions();
 	}
 	
 	/**

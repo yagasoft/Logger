@@ -48,6 +48,11 @@ final class File
 
 	static synchronized void initFile()
 	{
+		if (!GUI.initialised)
+		{
+			return;
+		}
+		
 		newLogFile();
 
 		new Thread(() ->
@@ -127,7 +132,7 @@ final class File
 	/* flush this text to log file. */
 	static void writeToFile(String text)
 	{
-		if ( !Logger.initialised)
+		if ( !Logger.initialised || !initialised)
 		{
 			return;
 		}

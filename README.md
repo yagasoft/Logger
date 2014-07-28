@@ -1,4 +1,4 @@
-Logger v5.04.160
+Logger v6.01.015
 ================
 
 A simple and stylised GUI logger that saves its entries to a log file in real time.
@@ -18,6 +18,8 @@ A simple and stylised GUI logger that saves its entries to a log file in real ti
 	+ Adjust text size
 	+ Limit number of entries (only visually -- full log saved to disk)
 	+ Toggle 'hide on close (x)', which minimises to tray on supported platforms
+	+ Capture the console output and error streams from the currently running application
+	+ Show only errors added to the log
 	+ All options are persistent
 
 ### Defaults:
@@ -27,9 +29,11 @@ A simple and stylised GUI logger that saves its entries to a log file in real ti
 	+ Auto log files are in plain text
   + Wrapping is off
   + Max entries are 500
-  + Hide on close is on.
-	+ Make sure to check the thread in memory if your OS doesn't support tray icons please.
-	+ This is so as not to close the program associated with the logger, unless explicitly specified.
+  + Hide on close is on
+	+ Make sure to check the thread in memory if your OS doesn't support tray icons please
+	+ This is so as not to close the program associated with the logger, unless explicitly specified
+  + Console capture is on. As it's fowarded to the normal console, so this is safe
+  + Show only errors is off
 
 ### Notes:
 

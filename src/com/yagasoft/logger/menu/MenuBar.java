@@ -15,6 +15,7 @@ package com.yagasoft.logger.menu;
 
 import java.awt.event.WindowEvent;
 
+import javax.swing.JCheckBoxMenuItem;
 import javax.swing.JFrame;
 import javax.swing.JMenu;
 import javax.swing.JMenuBar;
@@ -24,6 +25,7 @@ import javax.swing.WindowConstants;
 import com.yagasoft.logger.GUI;
 import com.yagasoft.logger.Logger;
 import com.yagasoft.logger.menu.panels.AboutPanel;
+import com.yagasoft.logger.menu.panels.option.Options;
 import com.yagasoft.logger.menu.panels.option.OptionsPanel;
 
 
@@ -43,6 +45,7 @@ public class MenuBar extends JMenuBar
 	private JMenuItem			exit;
 
 	private JMenu				editMenu;
+	private JCheckBoxMenuItem	onlyErrorsToggle;
 	private JMenuItem			clear;
 	private JMenuItem			options;
 
@@ -90,6 +93,16 @@ public class MenuBar extends JMenuBar
 
 		// build edit menu
 		editMenu = new JMenu("Edit");
+		editMenu.addActionListener(event -> onlyErrorsToggle.setSelected(GUI.isShowOnlyErrors()));
+
+		onlyErrorsToggle = new JCheckBoxMenuItem("Show only errors");
+		onlyErrorsToggle.setSelected(GUI.isShowOnlyErrors());
+		onlyErrorsToggle.addActionListener(event ->
+		{
+			GUI.setShowOnlyErrors(onlyErrorsToggle.isSelected());
+			Options.getInstance().saveOptions();
+		});
+		editMenu.add(onlyErrorsToggle);
 
 		options = new JMenuItem("Options");
 		options.addActionListener(event ->
@@ -97,14 +110,6 @@ public class MenuBar extends JMenuBar
 			OptionsPanel optionsPanel = new OptionsPanel();
 			JFrame frame = GUI.showSubWindow(optionsPanel, "Options");
 			optionsPanel.setFrame(frame);
-			optionsPanel.addListener(options ->
-			{
-				GUI.setMaxEntries(options.numberOfEntries);
-				GUI.setFontSize(options.fontSize);
-				GUI.setWrap(options.wrap);
-				GUI.setHideOnClose(options.hideOnClose);
-				Logger.saveOptions();
-			});
 		});
 		editMenu.add(options);
 

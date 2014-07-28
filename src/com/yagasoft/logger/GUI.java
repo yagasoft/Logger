@@ -1,11 +1,11 @@
 /*
  * Copyright (C) 2011-2014 by Ahmed Osama el-Sawalhy
- * 
+ *
  *		The Modified MIT Licence (GPL v3 compatible)
  * 			Licence terms are in a separate file (LICENCE.md)
- * 
+ *
  *		Project/File: Logger/com.yagasoft.logger/GUI.java
- * 
+ *
  *			Modified: 28-Jul-2014 (00:13:55)
  *			   Using: Eclipse J-EE / JDK 8 / Windows 8.1 x64
  */
@@ -37,7 +37,6 @@ import javax.swing.JPanel;
 import javax.swing.JScrollPane;
 import javax.swing.JTextPane;
 import javax.swing.ScrollPaneConstants;
-import javax.swing.SwingUtilities;
 import javax.swing.WindowConstants;
 import javax.swing.border.EmptyBorder;
 import javax.swing.text.AttributeSet;
@@ -48,6 +47,7 @@ import javax.swing.text.MutableAttributeSet;
 import javax.swing.text.StyleConstants;
 
 import com.yagasoft.logger.menu.MenuBar;
+import com.yagasoft.logger.menu.panels.option.Options;
 
 
 /**
@@ -57,49 +57,49 @@ public final class GUI
 {
 	
 	/** set when the log is accessible and ready. */
-	public static boolean								initialised				= false;
+	public static boolean						initialised		= false;
 	
 	/** Frame. */
-	public static JFrame								frame;
+	public static JFrame						frame;
 	
-	private static boolean								visible					= false;
-	private static int									actionOnClose			= WindowConstants.HIDE_ON_CLOSE;
-	private static boolean								hideOnClose;
+	private static boolean						visible			= false;
+	private static int							actionOnClose;
+	private static boolean						hideOnClose;
 	
-	private static JPanel								contentPane;
-	private static MenuBar								menuBar;
-	private static JScrollPane							scroller;
-	static JTextPane									textPane;
-	private static DefaultCaret							caret;
+	private static JPanel						contentPane;
+	private static MenuBar						menuBar;
+	private static JScrollPane					scroller;
+	static JTextPane							textPane;
+	private static DefaultCaret					caret;
+	
+	private static boolean						showOnlyErrors;
 	
 	/* Max entries to show in logger. */
-	private static int									maxEntries				= 500;
+	private static int							maxEntries;
 	
 	/* Font size for log window. */
-	private static int									fontSize				= 11;
+	private static int							fontSize;
 	
 	/* Wrap text in view. */
-	private static boolean								wrap					= false;
+	private static boolean						wrap;
 	
-	private static boolean								autoScroll				= true;
-	private static boolean								holdingBar				= false;
+	private static boolean						autoScroll		= true;
+	private static boolean						holdingBar		= false;
 	
-	private static SystemTray							systemTray;
-	private static TrayIcon								trayIcon;
-	private static Image								appIcon					= new ImageIcon(Logger.class
-																						.getResource("images/icon.png"))
-																						.getImage();
+	private static SystemTray					systemTray;
+	private static TrayIcon						trayIcon;
+	private static Image						appIcon			= new ImageIcon(Logger.class
+																		.getResource("images/icon.png"))
+																		.getImage();
 	// queue used to receive text sent.
-	private static LinkedBlockingDeque<String>			textQueue				= new LinkedBlockingDeque<String>();
-	private static LinkedBlockingDeque<AttributeSet>	attributeQueue			= new LinkedBlockingDeque<AttributeSet>();
+	private static LinkedBlockingDeque<Entry>	textQueue		= new LinkedBlockingDeque<Entry>();
 	
 	// queue used to cache text sent. It's used temporarily store text until a '\n' is encountered to flush to log.
-	private static LinkedBlockingDeque<String>			secondTextQueue			= new LinkedBlockingDeque<String>();
-	private static LinkedBlockingDeque<AttributeSet>	secondAttributeQueue	= new LinkedBlockingDeque<AttributeSet>();
+	private static LinkedBlockingDeque<Entry>	secondTextQueue	= new LinkedBlockingDeque<Entry>();
 	
-	private static Thread								writerThread;
+	private static Thread						writerThread;
 	// used for preventing write to log when scrolling manually.
-	private static CountDownLatch						latch					= new CountDownLatch(0);
+	private static CountDownLatch				latch			= new CountDownLatch(0);
 	
 	////////////////////////////////////////////////////////////////////////////////////////
 	// #region Initialisation.
@@ -110,11 +110,6 @@ public final class GUI
 	 */
 	public static synchronized void initLogger()
 	{
-		if ( !File.initialised)
-		{
-			return;
-		}
-		
 		if (textPane == null)
 		{
 			initFrame();
@@ -178,7 +173,7 @@ public final class GUI
 					e1.printStackTrace();
 				}
 				
-				Logger.saveOptions();
+				Options.getInstance().saveOptions();
 			}
 		});
 	}
@@ -260,7 +255,7 @@ public final class GUI
 				Rectangle visible;
 				Rectangle bounds;
 				
-				synchronized (Logger.logDocumentWriteLock)
+				synchronized (Logger.logAttributesLock)
 				{
 					visible = textPane.getVisibleRect();	// get visible rectangle of the log area
 					bounds = textPane.getBounds();	// get the size of the log area.
@@ -471,7 +466,7 @@ public final class GUI
 	//======================================================================================
 	
 	/* append text to the log as is using the style passed, then write it to log file. */
-	static void append(String text, AttributeSet style)
+	static void append(Entry entry)
 	{
 		if ( !initialised)
 		{
@@ -482,8 +477,7 @@ public final class GUI
 		{
 			synchronized (textQueue)
 			{
-				textQueue.put(text);
-				attributeQueue.put(style);
+				textQueue.put(entry);
 			}
 		}
 		catch (InterruptedException e)
@@ -501,59 +495,52 @@ public final class GUI
 		
 		try
 		{
-			String text = textQueue.take();
-			AttributeSet attributes = attributeQueue.take().copyAttributes();
+			Entry entry = textQueue.take();
 			
 			latch.await();
 			
 			if (textPane != null)
 			{
-				SwingUtilities.invokeLater(() ->
+				Logger.threadQueue.execute(() ->
 				{
 					try
 					{
-						// check whether a full line is ready for flush.
-						if ( !text.contains("\n"))
+						synchronized (textQueue)
 						{
-							secondTextQueue.add(text);
-							secondAttributeQueue.add(attributes);
+							secondTextQueue.add(entry);
 						}
-						else
+						
+						// check whether a full line is ready for flush.
+						if (entry.text.contains("\n"))
 						{
-							// if not, then get the last element (includes new line trigger)
-							synchronized (textQueue)
-							{
-								secondTextQueue.add(text);
-								secondAttributeQueue.add(attributes);
-							}
-							
-							String textTemp = null;
-							AttributeSet attributesTemp = null;
+							Entry entryTemp = null;
 							
 							// flush to log.
 							while ( !secondTextQueue.isEmpty())
 							{
-								textTemp = secondTextQueue.poll();
-								attributesTemp = secondAttributeQueue.poll();
+								entryTemp = secondTextQueue.poll();
 								
-								Logger.addToHistory(textTemp, attributesTemp);
+								Logger.addToHistory(entryTemp.text, entryTemp.attributes);
 								
-								synchronized (Logger.logAttributesLock)
+								if ( !entryTemp.saveOnly)
 								{
-									// add text to log area
-									textPane.getInputAttributes().removeAttributes(textPane.getInputAttributes());
-									textPane.setCharacterAttributes(textPane.getInputAttributes(), true);
-									textPane.setParagraphAttributes(textPane.getInputAttributes(), true);
-									
-									textPane.getDocument().insertString(textPane.getDocument().getLength(), textTemp,
-											attributesTemp);
+									synchronized (Logger.logAttributesLock)
+									{
+										// add text to log area
+										textPane.getInputAttributes().removeAttributes(textPane.getInputAttributes());
+										textPane.setCharacterAttributes(textPane.getInputAttributes(), true);
+										textPane.setParagraphAttributes(textPane.getInputAttributes(), true);
+										
+										textPane.getDocument().insertString(textPane.getDocument().getLength(), entryTemp.text,
+												entryTemp.attributes);
+									}
 								}
 								
-								File.writeToFile(textTemp);		// save to disk log file
+								File.writeToFile(entryTemp.text);		// save to disk log file
 							}
 							
 							// scroll to bottom if was already at the bottom.
-							if ( !holdingBar && autoScroll)
+							if ( !holdingBar && autoScroll && (entryTemp != null) && !entryTemp.saveOnly)
 							{
 								trimLog();
 								
@@ -564,7 +551,8 @@ public final class GUI
 									textPane.setParagraphAttributes(textPane.getInputAttributes(), true);
 									
 									caret.setUpdatePolicy(DefaultCaret.ALWAYS_UPDATE);
-									textPane.getDocument().insertString(textPane.getDocument().getLength(), "\r", attributesTemp);
+									textPane.getDocument().insertString(textPane.getDocument().getLength(), "\r",
+											entryTemp.attributes);
 									caret.setUpdatePolicy(DefaultCaret.NEVER_UPDATE);
 									textPane.setCaretPosition(textPane.getDocument().getLength());
 								}
@@ -590,7 +578,7 @@ public final class GUI
 	 */
 	private static void scroll()
 	{
-		SwingUtilities.invokeLater(() ->
+		Logger.threadQueue.execute(() ->
 		{
 			if (getEntriesNum() > maxEntries)
 			{
@@ -636,7 +624,7 @@ public final class GUI
 			return;
 		}
 		
-		removeEntries(countOverLimit(0));
+		removeEntries(countOverLimit(1));
 	}
 	
 	/**
@@ -652,18 +640,17 @@ public final class GUI
 			return;
 		}
 		
-		SwingUtilities
-				.invokeLater(() ->
+		Logger.threadQueue.execute(() ->
+		{
+			int elements = getEntriesNum();
+			
+			for (int i = count; ((i > 0) && (elements > 0) && (count <= elements)); i--)
+			{
+				try
 				{
-					int elements = getEntriesNum();
+					Element first;
 					
-					for (int i = count; ((i > 0) && (elements > 0) && (count <= elements)); i--)
-					{
-						try
-						{
-							Element first;
-							
-							// get <html>
+					// get <html>
 				Element root = textPane.getDocument().getDefaultRootElement();
 				// get <body>, and then the first entry in the body.
 				first = root.getElement(0);
@@ -720,14 +707,33 @@ public final class GUI
 	 */
 	public static void setMaxEntries(int maxEntries)
 	{
-		GUI.maxEntries = maxEntries;
 		
 		if ( !Logger.initialised || (GUI.maxEntries == maxEntries))
 		{
+			GUI.maxEntries = maxEntries;
 			return;
 		}
 		
+		GUI.maxEntries = maxEntries;
+		
 		trimLog();
+	}
+	
+	/**
+	 * @return the showOnlyErrors
+	 */
+	public static boolean isShowOnlyErrors()
+	{
+		return showOnlyErrors;
+	}
+	
+	/**
+	 * @param showOnlyErrors
+	 *            the showOnlyErrors to set
+	 */
+	public static void setShowOnlyErrors(boolean showOnlyErrors)
+	{
+		GUI.showOnlyErrors = showOnlyErrors;
 	}
 	
 	/**
@@ -746,14 +752,16 @@ public final class GUI
 	 */
 	public static synchronized void setFontSize(int fontSize)
 	{
-		GUI.fontSize = fontSize;
 		
 		if ( !Logger.initialised || (GUI.fontSize == fontSize))
 		{
+			GUI.fontSize = fontSize;
 			return;
 		}
 		
-		SwingUtilities.invokeLater(() ->
+		GUI.fontSize = fontSize;
+		
+		Logger.threadQueue.execute(() ->
 		{
 			AttributeSet attributesCopy;
 			
@@ -796,12 +804,13 @@ public final class GUI
 	{
 		if ( !Logger.initialised || (GUI.wrap == wrap))
 		{
+			GUI.wrap = wrap;
 			return;
 		}
 		
 		GUI.wrap = wrap;
 		
-		SwingUtilities.invokeLater(() ->
+		Logger.threadQueue.execute(() ->
 		{
 			try
 			{
@@ -809,9 +818,7 @@ public final class GUI
 				
 				synchronized (Logger.logAttributesLock)
 				{
-					synchronized (Logger.logDocumentWriteLock)
-					{
-						// recreate the log panel
+					// recreate the log panel
 				initLog();
 				
 				// relog to new panel
@@ -824,23 +831,11 @@ public final class GUI
 //									scroll();
 			}
 		}
-	}
-	catch (BadLocationException e)
-	{
-		e.printStackTrace();
-	}
-})		;
-	}
-	
-	/**
-	 * Sets the wrap var only.
-	 *
-	 * @param wrap
-	 *            the new wrap var only
-	 */
-	public static void setWrapVarOnly(boolean wrap)
-	{
-		GUI.wrap = wrap;
+		catch (BadLocationException e)
+		{
+			e.printStackTrace();
+		}
+	})	;
 	}
 	
 	/**
