@@ -67,8 +67,8 @@ public class Logger
 	/** set when the log is accessible and ready. */
 	private boolean								initialised				= false;
 
-	private LinkedBlockingQueue<String>			historyTextQueue		= new LinkedBlockingQueue<String>();
-	private LinkedBlockingQueue<AttributeSet>	historyAttributeQueue	= new LinkedBlockingQueue<AttributeSet>();
+	private LinkedBlockingQueue<String>			historyTextQueue		= new LinkedBlockingQueue<String>(100);
+	private LinkedBlockingQueue<AttributeSet>	historyAttributeQueue	= new LinkedBlockingQueue<AttributeSet>(100);
 
 	private JTextPane							conversionPane			= new JTextPane();
 
@@ -126,7 +126,7 @@ public class Logger
 	{
 		PLAIN,
 		BOLD,
-//		ITALIC,
+		//		ITALIC,
 		BOLDITALIC
 	}
 
@@ -135,6 +135,9 @@ public class Logger
 
 	/** Attribute pool. */
 	public Map<String, AttributeSet>	attrPool	= new HashMap<String, AttributeSet>(
+															Style.values().length * 16 * (colours.length + 2));
+	/** Style pool for HTML log file CSS. */
+	public Map<AttributeSet, String>	stylePool	= new HashMap<AttributeSet, String>(
 															Style.values().length * 16 * (colours.length + 2));
 
 	//======================================================================================
@@ -168,12 +171,35 @@ public class Logger
 		// initialise logger if it wasn't.
 		if ( !initialised)
 		{
+			// make sure to flush all log text, and save options before exiting.
+			Runtime.getRuntime().addShutdownHook(new Thread(() ->
+			{
+				try
+				{
+					File.getInstance().shutdownFlush();
+					Options.getInstance().saveOptions();
+					Thread.sleep(5000);
+
+					// compress and delete logs, and close all streams
+					File.getInstance().finalise();
+
+					while ( !File.getInstance().isFinished())
+					{
+						Thread.sleep(2000);
+					}
+				}
+				catch (Exception e)
+				{
+					e.printStackTrace();
+				}
+			}));
+
 			Options.getInstance().loadOptions();
 			gui = GUI.getInstance();
-			initStyles();
 			file = File.getInstance();
+			initStyles();
 
-			// history thread.
+			// HTML history file thread.
 			new Thread(() ->
 			{
 				String text;
@@ -185,11 +211,7 @@ public class Logger
 					{
 						text = historyTextQueue.take();
 						attributes = historyAttributeQueue.take();
-
-						synchronized (historyTextQueue)
-						{
-							file.writeToHTML(getHTML(text, attributes));
-						}
+						file.writeToHTML(getHTML(text, attributes));
 					}
 					catch (Exception e)
 					{
@@ -209,21 +231,80 @@ public class Logger
 		}
 	}
 
+	// saves all variants of attributes in a map to save memory and time
+	// forms CSS for all those attributes and saves them in the head of the HTML file to save space
 	private void initStyles()
 	{
+		String styleString;
+		file.writeToHTML("<head><style>");
+
 		for (Style style : Style.values())
 		{
 			for (int i = 10; i < 26; i++)
 			{
-				attrPool.putIfAbsent("" + i + style + BLACK, getStyle(i, style, BLACK));
-				attrPool.putIfAbsent("" + i + style + GREY, getStyle(i, style, GREY));
+				// add black variants
+				tempStyle = getStyle(i, style, BLACK);
+				attrPool.putIfAbsent("" + i + style + BLACK, tempStyle);
+				styleString = "s"
+						+ tempStyle.getAttribute(StyleConstants.FontSize)
+						+ tempStyle.getAttribute(StyleConstants.Bold)
+						+ tempStyle.getAttribute(StyleConstants.Italic)
+						+ BLACK.getRGB();
+				stylePool.putIfAbsent(tempStyle, styleString);
+				styleString = "." + styleString
+						+ " {font-family:Verdana;"
+						+ "font-size:" + i + ";"
+						+ "font-weight:"
+						+ ((boolean) tempStyle.getAttribute(StyleConstants.Bold) ? "bold" : "normal") + ";"
+						+ "font-style:"
+						+ ((boolean) tempStyle.getAttribute(StyleConstants.Italic) ? "italic" : "normal") + ";"
+						+ "color:rgb(" + BLACK.getRed() + "," + BLACK.getGreen() + "," + BLACK.getBlue() + ");} ";
+				file.writeToHTML(styleString);
 
+				// add grey variants
+				tempStyle = getStyle(i, style, GREY);
+				attrPool.putIfAbsent("" + i + style + GREY, tempStyle);
+				styleString = "s"
+						+ tempStyle.getAttribute(StyleConstants.FontSize)
+						+ tempStyle.getAttribute(StyleConstants.Bold)
+						+ tempStyle.getAttribute(StyleConstants.Italic)
+						+ GREY.getRGB();
+				stylePool.putIfAbsent(tempStyle, styleString);
+				styleString = "." + styleString
+						+ " {font-family:Verdana;"
+						+ "font-size:" + i + ";"
+						+ "font-weight:"
+						+ ((boolean) tempStyle.getAttribute(StyleConstants.Bold) ? "bold" : "normal") + ";"
+						+ "font-style:"
+						+ ((boolean) tempStyle.getAttribute(StyleConstants.Italic) ? "italic" : "normal") + ";"
+						+ "color:rgb(" + GREY.getRed() + "," + GREY.getGreen() + "," + GREY.getBlue() + ");} ";
+				file.writeToHTML(styleString);
+
+				// go through all the other colour variants ...
 				for (Color colour : colours)
 				{
-					attrPool.putIfAbsent("" + i + style + colour, getStyle(i, style, colour));
+					tempStyle = getStyle(i, style, colour);
+					attrPool.putIfAbsent("" + i + style + colour, tempStyle);
+					styleString = "s"
+							+ tempStyle.getAttribute(StyleConstants.FontSize)
+							+ tempStyle.getAttribute(StyleConstants.Bold)
+							+ tempStyle.getAttribute(StyleConstants.Italic)
+							+ colour.getRGB();
+					stylePool.putIfAbsent(tempStyle, styleString);
+					styleString = "." + styleString
+							+ " {font-family:Verdana;"
+							+ "font-size:" + i + ";"
+							+ "font-weight:"
+							+ ((boolean) tempStyle.getAttribute(StyleConstants.Bold) ? "bold" : "normal") + ";"
+							+ "font-style:"
+							+ ((boolean) tempStyle.getAttribute(StyleConstants.Italic) ? "italic" : "normal") + ";"
+							+ "color:rgb(" + colour.getRed() + "," + colour.getGreen() + "," + colour.getBlue() + ");} ";
+					file.writeToHTML(styleString);
 				}
 			}
 		}
+
+		file.writeToHTML("</style></head>");
 	}
 
 	//======================================================================================
@@ -464,11 +545,8 @@ public class Logger
 	{
 		try
 		{
-			synchronized (historyTextQueue)
-			{
-				historyTextQueue.put(entry);
-				historyAttributeQueue.put(style);
-			}
+			historyTextQueue.put(entry);
+			historyAttributeQueue.put(style);
 		}
 		catch (Exception e)
 		{
@@ -579,7 +657,7 @@ public class Logger
 
 			Font font = new Font(this.font
 					, ((style == Style.BOLD) ? Font.BOLD : 0)/*
-							+ ((style == Style.ITALIC) ? Font.ITALIC : 0)*/
+																+ ((style == Style.ITALIC) ? Font.ITALIC : 0)*/
 							+ ((style == Style.BOLDITALIC) ? Font.ITALIC + Font.BOLD : 0)
 					, (size <= 0) ? Options.getInstance().getFontSize() : size);
 
@@ -606,18 +684,12 @@ public class Logger
 
 		try
 		{
-			htmlAttributes.addAttribute(StyleConstants.FontFamily, style.getAttribute(StyleConstants.FontFamily));
-			htmlAttributes.addAttribute(StyleConstants.FontSize, 8);
-			htmlAttributes.addAttribute(StyleConstants.Italic, style.getAttribute(StyleConstants.Italic));
-			htmlAttributes.addAttribute(StyleConstants.Bold, style.getAttribute(StyleConstants.Bold));
-			htmlAttributes.addAttribute(StyleConstants.Foreground, style.getAttribute(StyleConstants.Foreground));
-
 			// replace characters that aren't parsed by the HTML panel!!!
-			// add the plain text to an HTML editor to convert the text to a stylised HTML.
+			// add the plain text to an HTML editor to convert the text to HTML.
 			conversionPane.getDocument().insertString(conversionPane.getDocument().getLength()
 					, text.replace("\n", "`new_line`").replace("\t", "`tab`")
 							.replace(" ", "`space`")
-					, htmlAttributes);
+					, null);
 		}
 		catch (BadLocationException e)
 		{
@@ -627,10 +699,15 @@ public class Logger
 
 		// remove unnecessary tags, and return tags that were replaced above.
 		// get the text back from the editor as HTML.
-		return conversionPane.getText().replace("<html>", "").replace("</html>", "").replace("<head>", "")
-				.replace("</head>", "").replace("<body>", "").replace("</body>", "")
-				.replace("`new_line`", "<br />").replace("`tab`", "&#9;").replace("`space`", "&nbsp;")
-				.replace("<p style", "<span style").replace("</p>", "</span>").replace("<p>", "<span>");
+		return "<span class=\"" + stylePool.get(style) + "\">"		// add CSS
+				+ conversionPane.getText()
+						.replace("<html>", "").replace("</html>", "").replace("<head>", "")		// remove redundant tags
+						.replace("</head>", "").replace("<body>", "").replace("</body>", "")
+						.replace("`new_line`", "<br />").replace("`tab`", "&#9;").replace("`space`", "&nbsp;")	// return tags
+						.replace("<p style=\"margin-top: 0\">", "").replace("</p>", "").replace("<p>", "")	// remove extra tags
+						// remove new line characters, and spaces outside tags (have no effect on resulting html)
+						.replace("\n", "").replaceAll(" {2,}", "")
+				+ "</span>";
 	}
 
 	// ======================================================================================
@@ -673,7 +750,7 @@ public class Logger
 
 					try (Writer writer = new OutputStreamWriter(Files.newOutputStream(file, StandardOpenOption.APPEND)))
 					{
-						writer.write("\n</html></body>");
+						writer.write("</html></body>");
 					}
 					catch (IOException e)
 					{

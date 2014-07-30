@@ -84,14 +84,14 @@ public final class GUI
 																				.getImage();
 
 	// queue used to receive text sent.
-	private LinkedBlockingQueue<String>			textQueue				= new LinkedBlockingQueue<String>();
-	private LinkedBlockingQueue<AttributeSet>	attributeQueue			= new LinkedBlockingQueue<AttributeSet>();
-	private LinkedBlockingQueue<Boolean>		saveOnlyQueue			= new LinkedBlockingQueue<Boolean>();
+	private LinkedBlockingQueue<String>			textQueue				= new LinkedBlockingQueue<String>(10);
+	private LinkedBlockingQueue<AttributeSet>	attributeQueue			= new LinkedBlockingQueue<AttributeSet>(10);
+	private LinkedBlockingQueue<Boolean>		saveOnlyQueue			= new LinkedBlockingQueue<Boolean>(10);
 
 	// queue used to cache text sent. It's used temporarily store text until a '\n' is encountered to flush to log.
-	private LinkedBlockingQueue<String>			secondTextQueue			= new LinkedBlockingQueue<String>();
-	private LinkedBlockingQueue<AttributeSet>	secondAttributeQueue	= new LinkedBlockingQueue<AttributeSet>();
-	private LinkedBlockingQueue<Boolean>		secondSaveOnlyQueue		= new LinkedBlockingQueue<Boolean>();
+	private LinkedBlockingQueue<String>			secondTextQueue			= new LinkedBlockingQueue<String>(100);
+	private LinkedBlockingQueue<AttributeSet>	secondAttributeQueue	= new LinkedBlockingQueue<AttributeSet>(100);
+	private LinkedBlockingQueue<Boolean>		secondSaveOnlyQueue		= new LinkedBlockingQueue<Boolean>(100);
 
 	// used for preventing write to log when scrolling manually.
 	private CountDownLatch						latch					= new CountDownLatch(0);
@@ -224,13 +224,7 @@ public final class GUI
 			public void windowClosing(WindowEvent e)
 			{
 				super.windowClosing(e);
-
-				// if 'hideOnClose' is false, the application will exit or not based on 'actionOnClose'.
 				hideLogger();
-
-				File.getInstance().flush();
-
-				Options.getInstance().saveOptions();
 			}
 		});
 	}
@@ -497,19 +491,11 @@ public final class GUI
 	/* append text to the log as is using the style passed, then write it to log file. */
 	void append(String text, AttributeSet attributes, boolean saveOnly)
 	{
-		if ( !initialised)
-		{
-			return;
-		}
-
 		try
 		{
-			synchronized (textQueue)
-			{
-				textQueue.put(text);
-				attributeQueue.put(attributes);
-				saveOnlyQueue.put(saveOnly);
-			}
+			textQueue.put(text);
+			attributeQueue.put(attributes);
+			saveOnlyQueue.put(saveOnly);
 		}
 		catch (InterruptedException e)
 		{
@@ -534,15 +520,12 @@ public final class GUI
 
 			if (textPane != null)
 			{
-				synchronized (textQueue)
-				{
-					secondTextQueue.add(text);
-					secondAttributeQueue.add(attributes);
-					secondSaveOnlyQueue.add(saveOnly);
-				}
+				secondTextQueue.add(text);
+				secondAttributeQueue.add(attributes);
+				secondSaveOnlyQueue.add(saveOnly);
 
 				// check whether a full line is ready for flush.
-				if (text.contains("\n"))
+				if (text.contains("\n") || secondTextQueue.remainingCapacity() <= 1)
 				{
 					// flush to log.
 					while ( !secondTextQueue.isEmpty())

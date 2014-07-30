@@ -42,7 +42,7 @@ public final class Log
 	}
 
 	/** Constant: VERSION. */
-	public static final String	VERSION						= "6.02.170";
+	public static final String	VERSION						= "6.03.235";
 
 	/** Instance. Set by calling {@link #initLogger(String, int, boolean)}. */
 	public static Logger		instance;

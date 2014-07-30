@@ -1,4 +1,4 @@
-Logger v6.02.170
+Logger v6.03.235
 ================
 
 A simple and stylised GUI logger that saves its entries to a log file in real time.
@@ -6,12 +6,13 @@ A simple and stylised GUI logger that saves its entries to a log file in real ti
 ### Features:
 
   + Creates a log file in the app folder automatically
-  + Flush entries periodically to the file automatically
+	+ Flushes entries periodically to the file
+	+ On shutdown, text and HTML files are compressed and originals deleted
+  + Export log to HTML or text file
   + Key text is stylised
   + Wrap words in '`' character to colour them
-	+ Post sequence of coloured strings, whether passed separate or in the same string.
+	+ Post sequence of coloured strings, whether passed separate or in the same string
   + Parses exceptions
-  + Export log to HTML or text file
   + Auto scrolling stops when manually scrolling, and resumes when scrolled to bottom again
   + Options:
 	+ Toggle text wrapping

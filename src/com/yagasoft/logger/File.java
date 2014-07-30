@@ -13,6 +13,8 @@
 package com.yagasoft.logger;
 
 
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.io.OutputStreamWriter;
@@ -24,6 +26,8 @@ import java.text.SimpleDateFormat;
 import java.util.Calendar;
 import java.util.Date;
 import java.util.concurrent.LinkedBlockingQueue;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipOutputStream;
 
 
 final class File
@@ -49,8 +53,11 @@ final class File
 	private OutputStreamWriter			textWriter;
 	private OutputStreamWriter			htmlWriter;
 
-	private LinkedBlockingQueue<String>	textQueue	= new LinkedBlockingQueue<String>();
-	private LinkedBlockingQueue<String>	htmlQueue	= new LinkedBlockingQueue<String>();
+	private boolean						flush		= false;
+	private boolean						finished	= false;
+
+	private LinkedBlockingQueue<String>	textQueue	= new LinkedBlockingQueue<String>(100);
+	private LinkedBlockingQueue<String>	htmlQueue	= new LinkedBlockingQueue<String>(100);
 
 	// get elapsed time since last physical write to file.
 	private long						lastFlush	= Calendar.getInstance().getTimeInMillis();
@@ -124,12 +131,17 @@ final class File
 		try
 		{
 			// if a file was created and open ...
-			if ((textWriter != null) && (htmlWriter != null))
+			if ((textWriter != null) && (htmlWriter != null) && initialised)
 			{
-				textWriter.write(textQueue.take().replace("\r", ""));
+				// avoid locking here at the start of the application.
+				if (Log.instance.isInitialised())
+				{
+					textWriter.write(textQueue.take().replace("\r", ""));
+				}
+				
 				htmlWriter.write(htmlQueue.take().replace("\r", ""));
 
-				if ((currentTime - lastFlush) > 5000)
+				if (((currentTime - lastFlush) > 5000) || flush)
 				{
 					flush();
 					lastFlush = Calendar.getInstance().getTimeInMillis();		// reset timer
@@ -146,11 +158,6 @@ final class File
 	/* flush this text to log file. */
 	void queueForWrite(String text)
 	{
-		if ( !initialised)
-		{
-			return;
-		}
-
 		try
 		{
 			textQueue.put(text);
@@ -164,11 +171,6 @@ final class File
 	/* flush this text to log file. */
 	void writeToHTML(String text)
 	{
-		if ( !initialised)
-		{
-			return;
-		}
-
 		try
 		{
 			htmlQueue.put(text);
@@ -185,13 +187,86 @@ final class File
 		try
 		{
 			textWriter.flush();
+			textStream.flush();
+
 			htmlWriter.flush();
+			htmlStream.flush();
 		}
 		catch (IOException e)
 		{
 			e.printStackTrace();
 		}
 	}
+
+	void shutdownFlush()
+	{
+		flush = true;
+	}
+
+	// compress the logs and delete them.
+	void finalise()
+	{
+		initialised = false;
+		finished = false;
+
+		byte[] buffer = new byte[1024];
+
+		try
+		{
+			FileOutputStream fos = new FileOutputStream(textFile.toString().replace(".log", "_log") + ".zip");
+			ZipOutputStream zos = new ZipOutputStream(fos);
+			zos.setMethod(ZipOutputStream.DEFLATED);
+
+			textWriter.flush();
+			textStream.flush();
+			ZipEntry ze = new ZipEntry(textFile.getFileName().toString());
+			zos.putNextEntry(ze);
+			FileInputStream in = new FileInputStream(textFile.toString());
+
+			int len;
+
+			while ((len = in.read(buffer)) > 0)
+			{
+				zos.write(buffer, 0, len);
+			}
+
+			in.close();
+
+			htmlWriter.write("\n</html></body>");
+			htmlWriter.flush();
+			htmlStream.flush();
+			ze = new ZipEntry(htmlFile.getFileName().toString());
+			zos.putNextEntry(ze);
+			in = new FileInputStream(htmlFile.toString());
+
+			while ((len = in.read(buffer)) > 0)
+			{
+				zos.write(buffer, 0, len);
+			}
+
+			in.close();
+			zos.closeEntry();
+			zos.close();
+
+			textWriter.close();
+			textStream.close();
+			Files.deleteIfExists(textFile);
+
+			htmlWriter.close();
+			htmlStream.close();
+			Files.deleteIfExists(htmlFile);
+		}
+		catch (IOException ex)
+		{
+			ex.printStackTrace();
+		}
+
+		finished = true;
+	}
+
+	////////////////////////////////////////////////////////////////////////////////////////
+	// #region Getters and setters.
+	//======================================================================================
 
 	/**
 	 * @return the htmlFile
@@ -226,6 +301,29 @@ final class File
 	{
 		this.textFile = textFile;
 	}
+
+
+	/**
+	 * @return the finished
+	 */
+	public boolean isFinished()
+	{
+		return finished;
+	}
+
+
+	/**
+	 * @param finished the finished to set
+	 */
+	public void setFinished(boolean finished)
+	{
+		this.finished = finished;
+	}
+
+	//======================================================================================
+	// #endregion Getters and setters.
+	////////////////////////////////////////////////////////////////////////////////////////
+
 
 	static File getInstance()
 	{
