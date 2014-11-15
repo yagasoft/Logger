@@ -66,7 +66,7 @@ public final class Options implements Serializable
 	/**
 	 * Collect options from all over the application.
 	 */
-	public synchronized void collectOptions()
+	public void collectOptions()
 	{
 		numberOfEntries = getNumberOfEntries();
 		fontSize = getFontSize();
@@ -80,7 +80,7 @@ public final class Options implements Serializable
 	/**
 	 * Apply options set to the application.
 	 */
-	public synchronized void applyOptions()
+	public void applyOptions()
 	{
 		setNumberOfEntries(numberOfEntries);
 		setFontSize(fontSize);
@@ -93,7 +93,7 @@ public final class Options implements Serializable
 	/**
 	 * Load options from disk.
 	 */
-	public synchronized void loadOptions()
+	public void loadOptions()
 	{
 		if (Files.notExists(OPTIONS_FILE))
 		{
@@ -101,15 +101,16 @@ public final class Options implements Serializable
 			return;
 		}
 
-		FileInputStream fileStream;		// incoming link to file.
-		ObjectInputStream objectStream;		// link to objects read from file.
-
 		try
 		{
-			fileStream = new FileInputStream(OPTIONS_FILE.toString());
-			objectStream = new ObjectInputStream(fileStream);
-			instance = (Options) objectStream.readObject();
-			objectStream.close();
+			synchronized (this)
+			{
+				final FileInputStream fileStream = new FileInputStream(OPTIONS_FILE.toString());
+				final ObjectInputStream objectStream = new ObjectInputStream(fileStream);
+				instance = (Options) objectStream.readObject();
+				objectStream.close();
+				fileStream.close();
+			}
 
 			instance.applyOptions();
 		}
@@ -122,16 +123,20 @@ public final class Options implements Serializable
 	/**
 	 * Save options to disk.
 	 */
-	public synchronized void saveOptions()
+	public void saveOptions()
 	{
 		collectOptions();
 
 		try
 		{
-			FileOutputStream fileStream = new FileOutputStream(OPTIONS_FILE.toString());
-			ObjectOutputStream objectStream = new ObjectOutputStream(fileStream);
-			objectStream.writeObject(instance);
-			objectStream.close();
+			synchronized (this)
+			{
+				final FileOutputStream fileStream = new FileOutputStream(OPTIONS_FILE.toString());
+				final ObjectOutputStream objectStream = new ObjectOutputStream(fileStream);
+				objectStream.writeObject(instance);
+				objectStream.close();
+				fileStream.close();
+			}
 		}
 		catch (IOException e)
 		{
@@ -146,12 +151,15 @@ public final class Options implements Serializable
 	 */
 	public static Options getInstance()
 	{
-		if (instance == null)
+		synchronized (Options.class)
 		{
-			instance = new Options();
-		}
+			if (instance == null)
+			{
+				instance = new Options();
+			}
 
-		return instance;
+			return instance;
+		}
 	}
 
 	////////////////////////////////////////////////////////////////////////////////////////
@@ -170,9 +178,9 @@ public final class Options implements Serializable
 	 * @param numberOfEntries
 	 *            the numberOfEntries to set
 	 */
-	public void setNumberOfEntries(Integer numberOfEntries)
+	public void setNumberOfEntries(final Integer numberOfEntries)
 	{
-		if ( !Log.instance.isInitialised() || (this.numberOfEntries == numberOfEntries))
+		if ( !Log.getInstance().isInitialised() || (this.numberOfEntries == numberOfEntries))
 		{
 			this.numberOfEntries = numberOfEntries;
 			return;
@@ -195,22 +203,20 @@ public final class Options implements Serializable
 	 * @param fontSize
 	 *            the fontSize to set
 	 */
-	public void setFontSize(Integer fontSize)
+	public void setFontSize(final Integer fontSize)
 	{
-		if ((fontSize < 10) || (fontSize > 25))
+		if ((fontSize >= 10) && (fontSize <= 25))
 		{
-			return;
-		}
+			if ( !Log.getInstance().isInitialised() || (this.fontSize == fontSize))
+			{
+				this.fontSize = fontSize;
+				return;
+			}
 
-		if ( !Log.instance.isInitialised() || (this.fontSize == fontSize))
-		{
 			this.fontSize = fontSize;
-			return;
+
+			GUI.getInstance().setFontSize(fontSize);
 		}
-
-		this.fontSize = fontSize;
-
-		GUI.getInstance().setFontSize(fontSize);
 	}
 
 	/**
@@ -225,9 +231,9 @@ public final class Options implements Serializable
 	 * @param wrap
 	 *            the wrap to set
 	 */
-	public void setWrap(boolean wrap)
+	public void setWrap(final boolean wrap)
 	{
-		if ( !Log.instance.isInitialised() || (this.wrap == wrap))
+		if ( !Log.getInstance().isInitialised() || (this.wrap == wrap))
 		{
 			this.wrap = wrap;
 			return;
@@ -250,7 +256,7 @@ public final class Options implements Serializable
 	 * @param hideOnClose
 	 *            the hideOnClose to set
 	 */
-	public void setHideOnClose(boolean hideOnClose)
+	public void setHideOnClose(final boolean hideOnClose)
 	{
 		this.hideOnClose = hideOnClose;
 		GUI.getInstance().setHideOnClose(hideOnClose);
@@ -268,7 +274,7 @@ public final class Options implements Serializable
 	 * @param showOnlyErrors
 	 *            the showOnlyErrors to set
 	 */
-	public void setShowOnlyErrors(boolean showOnlyErrors)
+	public void setShowOnlyErrors(final boolean showOnlyErrors)
 	{
 		this.showOnlyErrors = showOnlyErrors;
 	}
@@ -285,11 +291,11 @@ public final class Options implements Serializable
 	 * @param captureConsole
 	 *            the captureConsole to set
 	 */
-	public void setCaptureConsole(boolean captureConsole)
+	public void setCaptureConsole(final boolean captureConsole)
 	{
 		if ((this.captureConsole != captureConsole) && captureConsole)
 		{
-			Log.instance.captureSysOut();
+			Log.getInstance().captureSysOut();
 		}
 
 		this.captureConsole = captureConsole;
@@ -307,7 +313,7 @@ public final class Options implements Serializable
 	 * @param lastDirectory
 	 *            the lastDirectory to set
 	 */
-	public void setLastDirectory(String lastDirectory)
+	public void setLastDirectory(final String lastDirectory)
 	{
 		this.lastDirectory = lastDirectory;
 	}

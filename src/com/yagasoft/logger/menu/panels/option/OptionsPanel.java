@@ -19,8 +19,6 @@ import java.awt.FlowLayout;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.awt.event.WindowEvent;
-import java.util.HashSet;
-import java.util.Set;
 
 import javax.swing.JButton;
 import javax.swing.JCheckBox;
@@ -44,30 +42,20 @@ public class OptionsPanel extends JPanel implements ActionListener
 	/** The frame to include this options panel. */
 	private JFrame					frame;
 
-	/** Button ok. */
-	private JButton					buttonOk;
-
-	/** Button cancel. */
-	private JButton					buttonCancel;
-
-	/** Listeners. */
-	private Set<IOptionsListener>	listeners			= new HashSet<IOptionsListener>();
-	private JPanel					panelOptionsList;
-	private JLabel					labelNumEntries;
-	private JTextField				textFieldNumEntries;
-	private JLabel					labelFontSize;
-	private JTextField				textFieldFontSize;
-	private JCheckBox				checkBoxWrapText;
-	private JCheckBox				checkBoxHideOnClose;
-	private JLabel					labelTextOptions;
-	private JLabel					labelWindowBehaviour;
-	private JCheckBox				checkBoxCaptureConsole;
+	private transient JButton		buttonOk;
+	private transient JButton		buttonCancel;
+	private transient JTextField	textFieldNumEntries;
+	private transient JTextField	textFieldFontSize;
+	private transient JCheckBox		checkBoxWrapText;
+	private transient JCheckBox		checkBoxCaptureConsole;
+	private transient JCheckBox		checkBoxHideOnClose;
 
 	/**
 	 * Create the panel.
 	 */
 	public OptionsPanel()
 	{
+		super();
 		initGUI();
 	}
 
@@ -79,7 +67,7 @@ public class OptionsPanel extends JPanel implements ActionListener
 		setLayout(new BorderLayout(0, 0));
 
 		// buttons
-		JPanel buttonsPanel = new JPanel(new FlowLayout());
+		final JPanel buttonsPanel = new JPanel(new FlowLayout());
 
 		buttonOk = new JButton("OK");
 		buttonOk.addActionListener(this);
@@ -91,18 +79,18 @@ public class OptionsPanel extends JPanel implements ActionListener
 
 		add(buttonsPanel, BorderLayout.SOUTH);
 		//
-		panelOptionsList = new JPanel();
+		final JPanel panelOptionsList = new JPanel();
 		add(panelOptionsList, BorderLayout.CENTER);
-		SpringLayout panelOptionsListSpringLayout = new SpringLayout();
+		final SpringLayout panelOptionsListSpringLayout = new SpringLayout();
 		panelOptionsList.setLayout(panelOptionsListSpringLayout);
 		//
-		labelTextOptions = new JLabel("Text options:");
+		final JLabel labelTextOptions = new JLabel("Text options:");
 		panelOptionsListSpringLayout.putConstraint(SpringLayout.NORTH, labelTextOptions, 7, SpringLayout.NORTH, panelOptionsList);
 		panelOptionsListSpringLayout.putConstraint(SpringLayout.WEST, labelTextOptions, 7, SpringLayout.WEST, panelOptionsList);
 		labelTextOptions.setHorizontalAlignment(SwingConstants.TRAILING);
 		panelOptionsList.add(labelTextOptions);
 		//
-		labelNumEntries = new JLabel("Max of entries:");
+		final JLabel labelNumEntries = new JLabel("Max of entries:");
 		panelOptionsListSpringLayout.putConstraint(SpringLayout.NORTH, labelNumEntries, 6, SpringLayout.SOUTH, labelTextOptions);
 		panelOptionsList.add(labelNumEntries);
 		//
@@ -115,11 +103,11 @@ public class OptionsPanel extends JPanel implements ActionListener
 				panelOptionsList);
 		panelOptionsListSpringLayout.putConstraint(SpringLayout.EAST, textFieldNumEntries, -10, SpringLayout.EAST,
 				panelOptionsList);
-		textFieldNumEntries.setText(Options.getInstance().getNumberOfEntries() + "");
+		textFieldNumEntries.setText(Options.getInstance().getNumberOfEntries().toString());
 		panelOptionsList.add(textFieldNumEntries);
 		textFieldNumEntries.setColumns(10);
 		//
-		labelFontSize = new JLabel("Font size:");
+		final JLabel labelFontSize = new JLabel("Font size:");
 		panelOptionsListSpringLayout.putConstraint(SpringLayout.NORTH, labelFontSize, 6, SpringLayout.SOUTH, labelNumEntries);
 		panelOptionsListSpringLayout.putConstraint(SpringLayout.EAST, labelFontSize, 0, SpringLayout.EAST, labelNumEntries);
 		panelOptionsList.add(labelFontSize);
@@ -130,7 +118,7 @@ public class OptionsPanel extends JPanel implements ActionListener
 		panelOptionsListSpringLayout.putConstraint(SpringLayout.WEST, textFieldFontSize, 6, SpringLayout.EAST, labelFontSize);
 		panelOptionsListSpringLayout
 				.putConstraint(SpringLayout.EAST, textFieldFontSize, -23, SpringLayout.EAST, panelOptionsList);
-		textFieldFontSize.setText(Options.getInstance().getFontSize() + "");
+		textFieldFontSize.setText(Options.getInstance().getFontSize().toString());
 		panelOptionsList.add(textFieldFontSize);
 		textFieldFontSize.setColumns(10);
 		//
@@ -146,7 +134,7 @@ public class OptionsPanel extends JPanel implements ActionListener
 		checkBoxHideOnClose.setSelected(Options.getInstance().isHideOnClose());
 		panelOptionsList.add(checkBoxHideOnClose);
 		//
-		labelWindowBehaviour = new JLabel("Behaviour:");
+		final JLabel labelWindowBehaviour = new JLabel("Behaviour:");
 		panelOptionsListSpringLayout.putConstraint(SpringLayout.NORTH, labelWindowBehaviour, 12, SpringLayout.SOUTH,
 				checkBoxWrapText);
 		panelOptionsListSpringLayout.putConstraint(SpringLayout.WEST, labelWindowBehaviour, 0, SpringLayout.WEST,
@@ -171,13 +159,13 @@ public class OptionsPanel extends JPanel implements ActionListener
 	 * @see java.awt.event.ActionListener#actionPerformed(java.awt.event.ActionEvent)
 	 */
 	@Override
-	public void actionPerformed(ActionEvent e)
+	public void actionPerformed(final ActionEvent event)
 	{
-		if (e.getSource() == buttonCancel)
+		if (event.getSource() == buttonCancel)
 		{
 			frame.dispatchEvent(new WindowEvent(frame, WindowEvent.WINDOW_CLOSING));
 		}
-		else if (e.getSource() == buttonOk)
+		else if (event.getSource() == buttonOk)
 		{
 			applyOptions();
 			frame.dispatchEvent(new WindowEvent(frame, WindowEvent.WINDOW_CLOSING));
@@ -189,7 +177,7 @@ public class OptionsPanel extends JPanel implements ActionListener
 	 */
 	private void applyOptions()
 	{
-		Options options = Options.getInstance();
+		final Options options = Options.getInstance();
 		options.setNumberOfEntries(Integer.parseInt(textFieldNumEntries.getText()));
 		options.setFontSize(Integer.parseInt(textFieldFontSize.getText()));
 		options.setWrap(checkBoxWrapText.isSelected());
@@ -213,7 +201,7 @@ public class OptionsPanel extends JPanel implements ActionListener
 	 * @param frame
 	 *            the frame to set
 	 */
-	public void setFrame(JFrame frame)
+	public void setFrame(final JFrame frame)
 	{
 		this.frame = frame;
 		frame.setResizable(false);

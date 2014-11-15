@@ -25,6 +25,7 @@ import java.nio.file.StandardOpenOption;
 import java.text.SimpleDateFormat;
 import java.util.Calendar;
 import java.util.Date;
+import java.util.Locale;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
@@ -32,43 +33,42 @@ import java.util.zip.ZipOutputStream;
 
 final class File
 {
-
+	
 	/* set when the log is accessible and ready. */
-	private boolean						initialised	= false;
-
-	private static File					instance;
-
+	private transient boolean							initialised;
+	
+	private static File									instance;
+	
 	/* where the logs will be stored relative to project path. */
-	private final Path					LOGS_FOLDER	= Paths.get(System.getProperty("user.dir") + "/var/logs/");
-
+	private transient final Path						LOGS_FOLDER	= Paths.get(System.getProperty("user.dir") + "/var/logs/");
+	
 	/* current log file path. */
-	private Path						textFile;
-	private Path						htmlFile;
-
+	private transient Path								textFile;
+	private transient Path								htmlFile;
+	
 	/* stream to log file. */
-	private OutputStream				textStream;
-	private OutputStream				htmlStream;
-
+	private transient OutputStream						textStream;
+	private transient OutputStream						htmlStream;
+	
 	/* writer to log file. */
-	private OutputStreamWriter			textWriter;
-	private OutputStreamWriter			htmlWriter;
-
-	private boolean						flush		= false;
-	private boolean						finished	= false;
-
-	private LinkedBlockingQueue<String>	textQueue	= new LinkedBlockingQueue<String>(100);
-	private LinkedBlockingQueue<String>	htmlQueue	= new LinkedBlockingQueue<String>(100);
-
+	private transient OutputStreamWriter				textWriter;
+	private transient OutputStreamWriter				htmlWriter;
+	
+	private transient boolean							flush;
+	private transient boolean							finished;
+	
+	private transient final LinkedBlockingQueue<String>	textQueue	= new LinkedBlockingQueue<String>(100);
+	private transient final LinkedBlockingQueue<String>	htmlQueue	= new LinkedBlockingQueue<String>(100);
+	
 	// get elapsed time since last physical write to file.
-	private long						lastFlush	= Calendar.getInstance().getTimeInMillis();
-	private long						currentTime	= Calendar.getInstance().getTimeInMillis();
-
+	private transient long								lastFlush	= Calendar.getInstance().getTimeInMillis();
+	
 	private void initFile()
 	{
 		if (instance == null)
 		{
 			newLogFile();
-
+			
 			new Thread(() ->
 			{
 				while (true)
@@ -78,7 +78,7 @@ final class File
 			}).start();
 		}
 	}
-
+	
 	/* create a new log file using the current date and time for its name. */
 	private void newLogFile()
 	{
@@ -88,32 +88,21 @@ final class File
 			textFile = Files.createFile(LOGS_FOLDER.resolve(getFileStamp() + ".log"));
 			textStream = Files.newOutputStream(textFile, StandardOpenOption.APPEND);
 			textWriter = new OutputStreamWriter(textStream);
-
+			
 			htmlFile = Files.createFile(LOGS_FOLDER.resolve(getFileStamp() + ".html"));
 			htmlStream = Files.newOutputStream(htmlFile, StandardOpenOption.APPEND);
 			htmlWriter = new OutputStreamWriter(htmlStream);
 			htmlWriter.write("<html><body>\n");
-
+			
 			initialised = true;
 		}
-		catch (IOException e)
+		catch (final IOException e)
 		{	// oops, don't bother with a log file for this session!
 			e.printStackTrace();
-
-			textWriter = null;
-			textStream = null;
-			textFile = null;
-
-			htmlWriter = null;
-			htmlStream = null;
-			htmlFile = null;
-
-			e.printStackTrace();
-
 			initialised = false;
 		}
 	}
-
+	
 	/**
 	 * create the file-name time stamp from the system's date and time.
 	 *
@@ -121,29 +110,29 @@ final class File
 	 */
 	public String getFileStamp()
 	{
-		return (new SimpleDateFormat("yyyy-MM-dd_HH-mm-ss")).format(new Date());
+		return new SimpleDateFormat("yyyy-MM-dd_HH-mm-ss", Locale.getDefault()).format(new Date());
 	}
-
+	
 	private void writeToDisk()
 	{
-		currentTime = Calendar.getInstance().getTimeInMillis();		// compare
-
+		final long currentTime = Calendar.getInstance().getTimeInMillis();		// compare
+		
 		try
 		{
 			// if a file was created and open ...
 			if ((textWriter != null) && (htmlWriter != null) && initialised)
 			{
 				// avoid locking here at the start of the application.
-				if (Log.instance.isInitialised())
+				if (Log.getInstance().isInitialised())
 				{
 					textWriter.write(textQueue.take().replace("\r", ""));
 				}
 				
 				htmlWriter.write(htmlQueue.take().replace("\r", ""));
-
+				
 				if (((currentTime - lastFlush) > 5000) || flush)
 				{
-					flush();
+					flushStreams();
 					lastFlush = Calendar.getInstance().getTimeInMillis();		// reset timer
 				}
 			}
@@ -154,120 +143,124 @@ final class File
 			initialised = false;
 		}
 	}
-
+	
 	/* flush this text to log file. */
-	void queueForWrite(String text)
+	void queueForWrite(final String text)
 	{
 		try
 		{
 			textQueue.put(text);
 		}
-		catch (InterruptedException e)
+		catch (final InterruptedException e)
 		{
 			e.printStackTrace();
 		}
 	}
-
+	
 	/* flush this text to log file. */
-	void writeToHTML(String text)
+	void writeToHTML(final String text)
 	{
 		try
 		{
 			htmlQueue.put(text);
 		}
-		catch (InterruptedException e)
+		catch (final InterruptedException e)
 		{
 			e.printStackTrace();
 		}
 	}
-
+	
 	// write entries to physical file.
-	void flush()
+	void flushStreams()
 	{
 		try
 		{
 			textWriter.flush();
 			textStream.flush();
-
+			
 			htmlWriter.flush();
 			htmlStream.flush();
 		}
-		catch (IOException e)
+		catch (final IOException e)
 		{
 			e.printStackTrace();
 		}
 	}
-
-	void shutdownFlush()
+	
+	void shutdown()
 	{
 		flush = true;
 	}
-
+	
 	// compress the logs and delete them.
 	void finalise()
 	{
 		initialised = false;
 		finished = false;
-
-		byte[] buffer = new byte[1024];
-
+		
+		final byte[] buffer = new byte[1024];
+		
 		try
 		{
-			FileOutputStream fos = new FileOutputStream(textFile.toString().replace(".log", "_log") + ".zip");
-			ZipOutputStream zos = new ZipOutputStream(fos);
-			zos.setMethod(ZipOutputStream.DEFLATED);
-
+			final FileOutputStream outFileStream = new FileOutputStream(textFile.toString().replace(".log", "_log") + ".zip");
+			final ZipOutputStream zipOutStream = new ZipOutputStream(outFileStream);
+			zipOutStream.setMethod(ZipOutputStream.DEFLATED);
+			
 			textWriter.flush();
 			textStream.flush();
-			ZipEntry ze = new ZipEntry(textFile.getFileName().toString());
-			zos.putNextEntry(ze);
-			FileInputStream in = new FileInputStream(textFile.toString());
-
-			int len;
-
-			while ((len = in.read(buffer)) > 0)
+			ZipEntry zipEntry = new ZipEntry(textFile.getFileName().toString());
+			zipOutStream.putNextEntry(zipEntry);
+			FileInputStream inFileStream = new FileInputStream(textFile.toString());
+			
+			int len = inFileStream.read(buffer);
+			
+			while (len > 0)
 			{
-				zos.write(buffer, 0, len);
+				zipOutStream.write(buffer, 0, len);
+				len = inFileStream.read(buffer);
 			}
-
-			in.close();
-
+			
+			inFileStream.close();
+			
 			htmlWriter.write("\n</html></body>");
 			htmlWriter.flush();
 			htmlStream.flush();
-			ze = new ZipEntry(htmlFile.getFileName().toString());
-			zos.putNextEntry(ze);
-			in = new FileInputStream(htmlFile.toString());
-
-			while ((len = in.read(buffer)) > 0)
+			zipEntry = new ZipEntry(htmlFile.getFileName().toString());
+			zipOutStream.putNextEntry(zipEntry);
+			inFileStream = new FileInputStream(htmlFile.toString());
+			
+			len = inFileStream.read(buffer);
+			
+			while (len > 0)
 			{
-				zos.write(buffer, 0, len);
+				zipOutStream.write(buffer, 0, len);
+				len = inFileStream.read(buffer);
 			}
-
-			in.close();
-			zos.closeEntry();
-			zos.close();
-
+			
+			inFileStream.close();
+			zipOutStream.closeEntry();
+			zipOutStream.close();
+			
 			textWriter.close();
 			textStream.close();
 			Files.deleteIfExists(textFile);
-
+			
 			htmlWriter.close();
 			htmlStream.close();
 			Files.deleteIfExists(htmlFile);
 		}
-		catch (IOException ex)
+		catch (final IOException ex)
 		{
 			ex.printStackTrace();
 		}
-
+		
 		finished = true;
 	}
-
+	
 	////////////////////////////////////////////////////////////////////////////////////////
 	// #region Getters and setters.
 	//======================================================================================
-
+	
 	/**
 	 * @return the htmlFile
 	 */
@@ -275,16 +268,16 @@ final class File
 	{
 		return htmlFile;
 	}
-
+	
 	/**
 	 * @param htmlFile
 	 *            the htmlFile to set
 	 */
-	public void setHtmlFile(Path htmlFile)
+	public void setHtmlFile(final Path htmlFile)
 	{
 		this.htmlFile = htmlFile;
 	}
-
+	
 	/**
 	 * @return the textFile
 	 */
@@ -292,17 +285,16 @@ final class File
 	{
 		return textFile;
 	}
-
+	
 	/**
 	 * @param textFile
 	 *            the textFile to set
 	 */
-	public void setTextFile(Path textFile)
+	public void setTextFile(final Path textFile)
 	{
 		this.textFile = textFile;
 	}
-
-
+	
 	/**
 	 * @return the finished
 	 */
@@ -310,31 +302,33 @@ final class File
 	{
 		return finished;
 	}
-
-
+	
 	/**
-	 * @param finished the finished to set
+	 * @param finished
+	 *            the finished to set
 	 */
-	public void setFinished(boolean finished)
+	public void setFinished(final boolean finished)
 	{
 		this.finished = finished;
 	}
-
+	
 	//======================================================================================
 	// #endregion Getters and setters.
 	////////////////////////////////////////////////////////////////////////////////////////
-
-
+	
 	static File getInstance()
 	{
-		if (instance == null)
+		synchronized (File.class)
 		{
-			instance = new File();
+			if (instance == null)
+			{
+				instance = new File();
+			}
+			
+			return instance;
 		}
-
-		return instance;
 	}
-
+	
 	// Singleton!
 	private File()
 	{

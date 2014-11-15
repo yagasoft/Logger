@@ -13,6 +13,7 @@
 package com.yagasoft.logger;
 
 
+import java.awt.AWTException;
 import java.awt.BorderLayout;
 import java.awt.Frame;
 import java.awt.Image;
@@ -55,56 +56,57 @@ import com.yagasoft.logger.menu.panels.option.Options;
  */
 public final class GUI
 {
-
+	
 	/** set when the log is accessible and ready. */
-	private boolean								initialised				= false;
-
-	private static GUI							instance;
-
+	private transient boolean									initialised;
+	
+	private static GUI											instance;
+	
 	/** Frame. */
-	private JFrame								frame;
-	private String								title					= "Logger";
-
-	private boolean								visible					= false;
-	private int									actionOnClose;
-
-	private JPanel								contentPane;
-	private MenuBar								menuBar;
-	private JScrollPane							scroller;
-	private JTextPane							textPane;
-	private DefaultCaret						caret;
-
-	private boolean								autoScroll				= true;
-	private boolean								holdingBar				= false;
-
-	private SystemTray							systemTray;
-	private TrayIcon							trayIcon;
-	private Image								appIcon					= new ImageIcon(GUI.class
-																				.getResource("images/icon.png"))
-																				.getImage();
-
+	private JFrame												frame;
+	private String												title					= "Logger";
+	
+	private transient boolean									visible;
+	private transient int										actionOnClose;
+	
+	private transient JPanel									contentPane;
+	private transient JTextPane									textPane;
+	private transient DefaultCaret								caret;
+	
+	private transient boolean									autoScroll				= true;
+	private transient boolean									holdingBar;
+	private final static int									SCROLL_CLEARANCE		= 5;
+	
+	private transient SystemTray								systemTray;
+	private transient TrayIcon									trayIcon;
+	private Image												appIcon					= new ImageIcon(GUI.class
+																								.getResource("images/icon.png"))
+																								.getImage();
+	
 	// queue used to receive text sent.
-	private LinkedBlockingQueue<String>			textQueue				= new LinkedBlockingQueue<String>(10);
-	private LinkedBlockingQueue<AttributeSet>	attributeQueue			= new LinkedBlockingQueue<AttributeSet>(10);
-	private LinkedBlockingQueue<Boolean>		saveOnlyQueue			= new LinkedBlockingQueue<Boolean>(10);
-
+	private final transient LinkedBlockingQueue<String>			textQueue				= new LinkedBlockingQueue<String>(10);
+	private final transient LinkedBlockingQueue<AttributeSet>	attributeQueue			= new LinkedBlockingQueue<AttributeSet>(
+																								10);
+	private final transient LinkedBlockingQueue<Boolean>		saveOnlyQueue			= new LinkedBlockingQueue<Boolean>(10);
+	
 	// queue used to cache text sent. It's used temporarily store text until a '\n' is encountered to flush to log.
-	private LinkedBlockingQueue<String>			secondTextQueue			= new LinkedBlockingQueue<String>(100);
-	private LinkedBlockingQueue<AttributeSet>	secondAttributeQueue	= new LinkedBlockingQueue<AttributeSet>(100);
-	private LinkedBlockingQueue<Boolean>		secondSaveOnlyQueue		= new LinkedBlockingQueue<Boolean>(100);
-
+	private final transient LinkedBlockingQueue<String>			secondTextQueue			= new LinkedBlockingQueue<String>(100);
+	private final transient LinkedBlockingQueue<AttributeSet>	secondAttributeQueue	= new LinkedBlockingQueue<AttributeSet>(
+																								100);
+	private final transient LinkedBlockingQueue<Boolean>		secondSaveOnlyQueue		= new LinkedBlockingQueue<Boolean>(100);
+	
 	// used for preventing write to log when scrolling manually.
-	private CountDownLatch						latch					= new CountDownLatch(0);
-
-	private MouseAdapter						mouseScrollerListener;
-
-	private final Object						logAttributesLock		= new Object();
-	private final Object						syncObject				= new Object();
-
+	private transient CountDownLatch							latch					= new CountDownLatch(0);
+	
+	private transient MouseAdapter								mouseScrollerListener;
+	
+	private final Object										logAttributesLock		= new Object();
+	private final transient Object								syncObject				= new Object();
+	
 	////////////////////////////////////////////////////////////////////////////////////////
 	// #region Initialisation.
 	//======================================================================================
-
+	
 	/**
 	 * Inits the logger.
 	 */
@@ -114,74 +116,52 @@ public final class GUI
 		{
 			initFrame();
 			initPanel();
-
+			
 			mouseScrollerListener = new MouseAdapter()
 			{
-
+				
 				Rectangle	visible;
 				Rectangle	bounds;
-
+				
 				@Override
-				public void mousePressed(MouseEvent e)
+				public void mousePressed(final MouseEvent event)
 				{
-					super.mousePressed(e);
-
+					super.mousePressed(event);
+					
 					// prevent writing.
 					latch = new CountDownLatch(1);
-
+					
 					holdingBar = true;
 					autoScroll = false;
 				}
-
+				
 				@Override
-				public void mouseReleased(MouseEvent e)
+				public void mouseReleased(final MouseEvent event)
 				{
-					super.mouseReleased(e);
-
+					super.mouseReleased(event);
+					
 					synchronized (logAttributesLock)
 					{
 						visible = textPane.getVisibleRect();	// get visible rectangle of the log area
 						bounds = textPane.getBounds();	// get the size of the log area.
 					}
-
+					
 					// if the visible rectangle is not at the bottom, stop auto scrolling
-					if ((bounds.height - (visible.height + visible.y)) <= 5)
+					if ((bounds.height - (visible.height + visible.y)) <= SCROLL_CLEARANCE)
 					{
 						autoScroll = true;
 					}
-
+					
 					holdingBar = false;
-
+					
 					// allow writing.
 					latch.countDown();
 				}
 			};
-
+			
 			initLog();
 			initTray();
-
-			// look clean!
-			new Thread(() ->
-			{
-				while (true)
-				{
-					try
-					{
-						Thread.sleep(60000);
-
-						if (getEntriesNum() > 1000)
-						{
-							System.gc();
-							System.out.println("Called GC from looper!");
-						}
-					}
-					catch (Exception e)
-					{
-						e.printStackTrace();
-					}
-				}
-			}).start();
-
+			
 			// log writing thread.
 			new Thread(() ->
 			{
@@ -191,10 +171,10 @@ public final class GUI
 				}
 			}).start();
 		}
-
+		
 		initialised = true;
 	}
-
+	
 	/* Inits the frame. */
 	private void initFrame()
 	{
@@ -204,46 +184,43 @@ public final class GUI
 		frame.setVisible(true);
 		visible = true;
 		frame.setIconImage(appIcon);
-
+		
 		// save options and close DB when application is closing.
 		frame.addWindowListener(new WindowAdapter()
 		{
-
+			
 			@Override
-			public void windowIconified(WindowEvent e)
+			public void windowIconified(final WindowEvent event)
 			{
-				super.windowIconified(e);
-
+				super.windowIconified(event);
+				
 				if (SystemTray.isSupported() && Options.getInstance().isHideOnClose())
 				{
 					hideLogger();
 				}
 			}
-
+			
 			@Override
-			public void windowClosing(WindowEvent e)
+			public void windowClosing(final WindowEvent e)
 			{
 				super.windowClosing(e);
 				hideLogger();
 			}
 		});
 	}
-
+	
 	/* Inits the panel. */
 	private void initPanel()
 	{
 		contentPane = new JPanel();
 		contentPane.setBorder(new EmptyBorder(5, 5, 5, 5));
 		contentPane.setLayout(new BorderLayout(0, 0));
-
+		
 		frame.setContentPane(contentPane);
-
-		menuBar = new MenuBar();
-		contentPane.add(menuBar, BorderLayout.NORTH);
-
-//		frame.revalidate();
+		
+		contentPane.add(new MenuBar(), BorderLayout.NORTH);
 	}
-
+	
 	/* Inits the log text area. */
 	private void initLog()
 	{
@@ -258,50 +235,50 @@ public final class GUI
 			 */
 			textPane = new JTextPane()
 			{
-
+				
 				private static final long	serialVersionUID	= 7134437176140763527L;
-
+				
 				@Override
-				public boolean getScrollableTracksViewportWidth()
+				public boolean getScrollableTracksViewportWidth() // NOPMD by Ahmed on 31/07/14 11:01
 				{
 					return getUI().getPreferredSize(this).width <= getParent().getSize().width;
 				}
 			};
 		}
-
+		
 		textPane.setEditable(false);
 		caret = (DefaultCaret) textPane.getCaret();
 		caret.setUpdatePolicy(DefaultCaret.NEVER_UPDATE);
-
-		scroller = new JScrollPane(textPane);
+		
+		final JScrollPane scroller = new JScrollPane(textPane);
 		scroller.setVerticalScrollBarPolicy(ScrollPaneConstants.VERTICAL_SCROLLBAR_AS_NEEDED);
 		scroller.setHorizontalScrollBarPolicy(ScrollPaneConstants.HORIZONTAL_SCROLLBAR_AS_NEEDED);
 		scroller.getVerticalScrollBar().addMouseListener(mouseScrollerListener);
-
+		
 		contentPane.add(scroller, BorderLayout.CENTER);
 		frame.revalidate();
 	}
-
+	
 	//======================================================================================
 	// #endregion Initialisation.
 	////////////////////////////////////////////////////////////////////////////////////////
-
+	
 	////////////////////////////////////////////////////////////////////////////////////////
 	// #region Window control.
 	//======================================================================================
-
+	
 	void showLogger()
 	{
 		if ( !initialised || visible)
 		{
 			return;
 		}
-
+		
 		restoreWindow();
 		visible = true;
 		frame.setVisible(visible);
 	}
-
+	
 	/**
 	 * Hide logger. This will try to minimise to tray. The 'minimise' event fired by Swing in general will call this method if
 	 * {@link Options#isHideOnClose()} is set to true.
@@ -312,13 +289,13 @@ public final class GUI
 		{
 			return;
 		}
-
+		
 		minimiseToTray();
-
+		
 		visible = false;
 		frame.setVisible(visible);
 	}
-
+	
 	/**
 	 * Creates an action to be taken that is related to a panel to be opened.
 	 * This action is a new frame to include the panel passed,
@@ -330,48 +307,46 @@ public final class GUI
 	 *            Title of the frame.
 	 * @return J frame
 	 */
-	public JFrame showSubWindow(JPanel panel, String title)
+	public JFrame showSubWindow(final JPanel panel, final String title)
 	{
-		if ( !initialised)
-		{
-			return null;
-		}
-
 		// create a frame for the panel.
-		JFrame newFrame = new JFrame(title);
-
-		// open the frame relative to the main window.
-		Point mainWindowLocation = frame.getLocation();
-		newFrame.setLocation((int) mainWindowLocation.getX() + 50, (int) mainWindowLocation.getY() + 50);
-
-		// when the frame is closed, dispose of it and return focus to the main window.
-		newFrame.addWindowListener(new WindowAdapter()
+		final JFrame newFrame = new JFrame(title);
+		
+		if (initialised)
 		{
-
-			@Override
-			public void windowClosing(WindowEvent e)
+			// open the frame relative to the main window.
+			final Point mainWindowLocation = frame.getLocation();
+			newFrame.setLocation((int) mainWindowLocation.getX() + 50, (int) mainWindowLocation.getY() + 50);
+			
+			// when the frame is closed, dispose of it and return focus to the main window.
+			newFrame.addWindowListener(new WindowAdapter()
 			{
-				super.windowClosing(e);
-
-				newFrame.dispose();
-				setMainWindowFocusable(true);
-			}
-
-		});
-
-		// add the passed panel to the frame.
-		newFrame.add(panel);
-		// show the frame.
-		newFrame.setVisible(true);
-		// size to contents
-		newFrame.pack();
-
-		// disable the main window.
-		setMainWindowFocusable(false);
-
+				
+				@Override
+				public void windowClosing(final WindowEvent event)
+				{
+					super.windowClosing(event);
+					
+					newFrame.dispose();
+					setMainWindowFocusable(true);
+				}
+				
+			});
+			
+			// add the passed panel to the frame.
+			newFrame.add(panel);
+			// show the frame.
+			newFrame.setVisible(true);
+			// size to contents
+			newFrame.pack();
+			
+			// disable the main window.
+			setMainWindowFocusable(false);
+		}
+		
 		return newFrame;
 	}
-
+	
 	/**
 	 * Set the focus state of the main window.
 	 * This is used when a window is opened on top of this main window
@@ -380,39 +355,39 @@ public final class GUI
 	 * @param focusable
 	 *            true for allowing focus using the mouse click.
 	 */
-	void setMainWindowFocusable(boolean focusable)
+	void setMainWindowFocusable(final boolean focusable)
 	{
 		if ( !initialised)
 		{
 			return;
 		}
-
+		
 		frame.setFocusableWindowState(focusable);
 		frame.setEnabled(focusable);
-
+		
 		// bring it to front.
 		if (focusable)
 		{
 			frame.setVisible(true);
 		}
 	}
-
+	
 	private void initTray()
 	{
 		if ( !SystemTray.isSupported())
 		{
 			return;
 		}
-
+		
 		systemTray = SystemTray.getSystemTray();
-
-		PopupMenu trayMenu = new PopupMenu();
+		
+		final PopupMenu trayMenu = new PopupMenu();
 		MenuItem menuItem;
-
+		
 		menuItem = new MenuItem("Restore");
 		menuItem.addActionListener(event -> showLogger());
 		trayMenu.add(menuItem);
-
+		
 		menuItem = new MenuItem("Exit");
 		menuItem.addActionListener(event ->
 		{
@@ -420,47 +395,49 @@ public final class GUI
 			frame.dispatchEvent(new WindowEvent(frame, WindowEvent.WINDOW_CLOSING));
 		});
 		trayMenu.add(menuItem);
-
+		
 		trayIcon = new TrayIcon(appIcon, title, trayMenu);
-
+		
 		trayIcon.addMouseListener(new MouseAdapter()
 		{
-
+			
 			@Override
-			public void mouseClicked(MouseEvent e)
+			public void mouseClicked(final MouseEvent event)
 			{
-				super.mouseClicked(e);
-
-				if (e.getClickCount() >= 2)
+				super.mouseClicked(event);
+				
+				if (event.getClickCount() >= 2)
 				{
 					showLogger();
 				}
 			}
 		});
 	}
-
+	
 	/*
 	 * Minimises the app to the system tray.
 	 */
 	private boolean minimiseToTray()
 	{
-		if ( !visible || !SystemTray.isSupported())
+		boolean minimised = false;
+		
+		if (visible && SystemTray.isSupported())
 		{
-			return false;
+			try
+			{
+				systemTray.add(trayIcon);
+				minimised = true;
+			}
+			catch (final AWTException e)
+			{
+				e.printStackTrace();
+				minimised = false;
+			}
 		}
-
-		try
-		{
-			systemTray.add(trayIcon);
-			return true;
-		}
-		catch (Exception e)
-		{
-			e.printStackTrace();
-			return false;
-		}
+		
+		return minimised;
 	}
-
+	
 	/*
 	 * Restores the app from the system tray, and brings it to the front.
 	 */
@@ -468,28 +445,28 @@ public final class GUI
 	{
 		frame.setExtendedState(Frame.NORMAL);
 		frame.toFront();
-
+		
 		if ((systemTray != null) && Arrays.stream(systemTray.getTrayIcons()).anyMatch(icon -> icon.equals(trayIcon)))
 		{
 			systemTray.remove(trayIcon);
 		}
 	}
-
+	
 	//======================================================================================
 	// #endregion Window control.
 	////////////////////////////////////////////////////////////////////////////////////////
-
+	
 	////////////////////////////////////////////////////////////////////////////////////////
 	// #region Log methods.
 	//======================================================================================
-
-	void append(String text, AttributeSet attributes)
+	
+	void append(final String text, final AttributeSet attributes)
 	{
 		append(text, attributes, false);
 	}
-
+	
 	/* append text to the log as is using the style passed, then write it to log file. */
-	void append(String text, AttributeSet attributes, boolean saveOnly)
+	void append(final String text, final AttributeSet attributes, final boolean saveOnly)
 	{
 		try
 		{
@@ -497,35 +474,35 @@ public final class GUI
 			attributeQueue.put(attributes);
 			saveOnlyQueue.put(saveOnly);
 		}
-		catch (InterruptedException e)
+		catch (final InterruptedException e)
 		{
 			e.printStackTrace();
 		}
 	}
-
+	
 	private void writeToLog()
 	{
-		if ( !Log.instance.isInitialised())
+		if ( !Log.getInstance().isInitialised())
 		{
 			return;
 		}
-
+		
 		try
 		{
 			String text = textQueue.take();
 			AttributeSet attributes = attributeQueue.take();
 			boolean saveOnly = saveOnlyQueue.take();
-
+			
 			latch.await();
-
+			
 			if (textPane != null)
 			{
 				secondTextQueue.add(text);
 				secondAttributeQueue.add(attributes);
 				secondSaveOnlyQueue.add(saveOnly);
-
+				
 				// check whether a full line is ready for flush.
-				if (text.contains("\n") || secondTextQueue.remainingCapacity() <= 1)
+				if (text.contains("\n") || (secondTextQueue.remainingCapacity() <= 1))
 				{
 					// flush to log.
 					while ( !secondTextQueue.isEmpty())
@@ -533,9 +510,9 @@ public final class GUI
 						text = secondTextQueue.poll();
 						attributes = secondAttributeQueue.poll();
 						saveOnly = secondSaveOnlyQueue.poll();
-
-						Log.instance.addToHistory(text, attributes);
-
+						
+						Log.getInstance().addToHistory(text, attributes);
+						
 						if ( !saveOnly)
 						{
 							synchronized (logAttributesLock)
@@ -544,7 +521,7 @@ public final class GUI
 								textPane.getInputAttributes().removeAttributes(textPane.getInputAttributes());
 								textPane.setCharacterAttributes(textPane.getInputAttributes(), true);
 								textPane.setParagraphAttributes(textPane.getInputAttributes(), true);
-
+								
 								synchronized (syncObject)
 								{
 									textPane.getDocument().insertString(textPane.getDocument().getLength(), text,
@@ -552,29 +529,29 @@ public final class GUI
 								}
 							}
 						}
-
+						
 						File.getInstance().queueForWrite(text);		// save to disk log file
 					}
-
+					
 					// scroll to bottom if was already at the bottom.
 					if ( !holdingBar && autoScroll && (text != null) && !saveOnly)
 					{
 						trimLog();
-
+						
 						synchronized (logAttributesLock)
 						{
 							textPane.getInputAttributes().removeAttributes(textPane.getInputAttributes());
 							textPane.setCharacterAttributes(textPane.getInputAttributes(), true);
 							textPane.setParagraphAttributes(textPane.getInputAttributes(), true);
-
+							
 							caret.setUpdatePolicy(DefaultCaret.ALWAYS_UPDATE);
-
+							
 							synchronized (syncObject)
 							{
 								textPane.getDocument().insertString(textPane.getDocument().getLength(), "\r",
 										attributes);
 							}
-
+							
 							caret.setUpdatePolicy(DefaultCaret.NEVER_UPDATE);
 							textPane.setCaretPosition(textPane.getDocument().getLength());
 						}
@@ -582,43 +559,17 @@ public final class GUI
 				}
 			}
 		}
-		catch (Exception e)
+		catch (final BadLocationException | InterruptedException e)
 		{
 			e.printStackTrace();
 		}
 	}
-
-	/**
-	 * Scrolls to the bottom and left of the log.
-	 */
-	private void scroll()
-	{
-		if (getEntriesNum() > Options.getInstance().getNumberOfEntries())
-		{
-			return;
-		}
-
-		try
-		{
-			if ((scroller != null) && (scroller.getVerticalScrollBar() != null))
-			{
-				scroller.getHorizontalScrollBar()
-						.setValue(scroller.getHorizontalScrollBar().getMinimum());
-				scroller.getVerticalScrollBar()
-						.setValue(scroller.getVerticalScrollBar().getMaximum());
-			}
-		}
-		catch (Throwable e)
-		{
-			e.printStackTrace();
-		}
-	}
-
-	int countOverLimit(int limit)
+	
+	int countOverLimit(final int limit)
 	{
 		return Math.max(getEntriesNum() - limit, 0);
 	}
-
+	
 	/** reduce the max entries to be within the limit */
 	public void trimLog()
 	{
@@ -628,41 +579,41 @@ public final class GUI
 			removeEntries(countOverLimit(Options.getInstance().getNumberOfEntries()));
 		}
 	}
-
+	
 	/**
 	 * Clear log.
 	 */
 	public void clearLog()
 	{
-		if ( !Log.instance.isInitialised())
+		if ( !Log.getInstance().isInitialised())
 		{
 			return;
 		}
-
+		
 		synchronized (syncObject)
 		{
 			removeEntries(countOverLimit(1));
 		}
 	}
-
+	
 	/**
 	 * Removes the entries.
 	 *
 	 * @param count
 	 *            Count.
 	 */
-	private void removeEntries(int count)
+	private void removeEntries(final int count)
 	{
-		if ( !Log.instance.isInitialised())
+		if ( !Log.getInstance().isInitialised())
 		{
 			return;
 		}
-
-		int elements = getEntriesNum();
-
+		
+		final int elements = getEntriesNum();
+		
 		Element root;
 		Element first;
-
+		
 		for (int i = count; ((i > 0) && (elements > 0) && (count <= elements)); i--)
 		{
 			try
@@ -671,58 +622,52 @@ public final class GUI
 				first = root.getElement(0);
 				textPane.getDocument().remove(first.getStartOffset(), first.getEndOffset());
 			}
-			catch (BadLocationException e)
+			catch (final BadLocationException e)
 			{
 				e.printStackTrace();
 			}
 		}
-
-		if (count > 1000)
-		{
-			System.gc();
-			System.out.println("Called GC from inside removeEntries!");
-		}
 	}
-
+	
 	private int getEntriesNum()
 	{
 		return textPane.getDocument().getDefaultRootElement().getElementCount();
 	}
-
+	
 	//======================================================================================
 	// #endregion Log methods.
 	////////////////////////////////////////////////////////////////////////////////////////
-
+	
 	/**
 	 * Show message to show.
 	 *
 	 * @param message
 	 *            Message.
 	 */
-	void showMessage(String message)
+	void showMessage(final String message)
 	{
 		JOptionPane.showMessageDialog(frame, message, "Infomation."
 				, JOptionPane.INFORMATION_MESSAGE);
 	}
-
+	
 	/**
 	 * Sets the font size.
 	 *
 	 * @param fontSize
 	 *            the fontSize to set
 	 */
-	public void setFontSize(int fontSize)
+	public void setFontSize(final int fontSize)
 	{
 		synchronized (logAttributesLock)
 		{
-			MutableAttributeSet attributes = textPane.getInputAttributes();
+			final MutableAttributeSet attributes = textPane.getInputAttributes();
 			attributes.removeAttribute(StyleConstants.FontFamily);
 			attributes.removeAttribute(StyleConstants.FontSize);
 			attributes.removeAttribute(StyleConstants.Italic);
 			attributes.removeAttribute(StyleConstants.Bold);
 			attributes.removeAttribute(StyleConstants.Foreground);
 			attributes.addAttribute(StyleConstants.FontSize, fontSize);
-
+			
 			synchronized (syncObject)
 			{
 				textPane.getStyledDocument().setCharacterAttributes(0, textPane.getDocument().getLength()
@@ -730,14 +675,14 @@ public final class GUI
 			}
 		}
 	}
-
+	
 	/**
 	 * Sets the wrap text in view.
 	 *
 	 * @param wrap
 	 *            the wrap to set
 	 */
-	public void setWrap(boolean wrap)
+	public void setWrap(final boolean wrap)
 	{
 		try
 		{
@@ -745,46 +690,43 @@ public final class GUI
 			{
 				synchronized (syncObject)
 				{
-					String oldText = textPane.getText();
-
+					final String oldText = textPane.getText();
+					
 					textPane.setText("");
-
+					
 					// recreate the log panel
 					initLog();
-
+					
 					// relog to new panel
 					textPane.setText(oldText);
-
+					
 					// move caret to new line at the end (replacing text leaves it at end of last line).
 					textPane.getDocument().insertString(textPane.getDocument().getLength(), "\r\n", null);
-
-					System.gc();
-					System.out.println("Called GC from inside setWrap!");
 				}
 			}
 		}
-		catch (BadLocationException e)
+		catch (final BadLocationException e)
 		{
 			e.printStackTrace();
 		}
 	}
-
+	
 	/**
 	 * Sets the action on close.
 	 *
 	 * @param actionOnClose
 	 *            the actionOnClose to set
 	 */
-	public void setActionOnClose(int actionOnClose)
+	public void setActionOnClose(final int actionOnClose)
 	{
 		setHideOnClose(actionOnClose == WindowConstants.HIDE_ON_CLOSE);
 	}
-
+	
 	/**
 	 * @param hideOnClose
 	 *            the hideOnClose to set
 	 */
-	public void setHideOnClose(boolean hideOnClose)
+	public void setHideOnClose(final boolean hideOnClose)
 	{
 		if (hideOnClose)
 		{
@@ -794,13 +736,13 @@ public final class GUI
 		{
 			actionOnClose = WindowConstants.EXIT_ON_CLOSE;
 		}
-
+		
 		if (frame != null)
 		{
 			frame.setDefaultCloseOperation(actionOnClose);
 		}
 	}
-
+	
 	/**
 	 * @return the appIcon
 	 */
@@ -808,18 +750,18 @@ public final class GUI
 	{
 		return appIcon;
 	}
-
+	
 	/**
 	 * @param appIcon
 	 *            the appIcon to set
 	 */
-	public void setAppIcon(Image appIcon)
+	public void setAppIcon(final Image appIcon)
 	{
 		this.appIcon = appIcon;
 		frame.setIconImage(appIcon);
 		initTray();
 	}
-
+	
 	/**
 	 * @return the textPane
 	 */
@@ -827,16 +769,16 @@ public final class GUI
 	{
 		return textPane;
 	}
-
+	
 	/**
 	 * @param textPane
 	 *            the textPane to set
 	 */
-	public void setTextPane(JTextPane textPane)
+	public void setTextPane(final JTextPane textPane)
 	{
 		this.textPane = textPane;
 	}
-
+	
 	/**
 	 * @return the frame
 	 */
@@ -844,16 +786,16 @@ public final class GUI
 	{
 		return frame;
 	}
-
+	
 	/**
 	 * @param frame
 	 *            the frame to set
 	 */
-	public void setFrame(JFrame frame)
+	public void setFrame(final JFrame frame)
 	{
 		this.frame = frame;
 	}
-
+	
 	/**
 	 * @return the title
 	 */
@@ -861,18 +803,18 @@ public final class GUI
 	{
 		return title;
 	}
-
+	
 	/**
 	 * @param title
 	 *            the title to set
 	 */
-	public void setTitle(String title)
+	public void setTitle(final String title)
 	{
 		this.title = title;
 		frame.setTitle(title);
 		initTray();
 	}
-
+	
 	/**
 	 * Gets the log attributes lock.
 	 *
@@ -882,11 +824,11 @@ public final class GUI
 	{
 		return logAttributesLock;
 	}
-
+	
 	//======================================================================================
 	// #endregion Getters and setters.
 	////////////////////////////////////////////////////////////////////////////////////////
-
+	
 	/**
 	 * Gets the single instance of GUI.
 	 *
@@ -894,18 +836,21 @@ public final class GUI
 	 */
 	public static GUI getInstance()
 	{
-		if (instance == null)
+		synchronized (GUI.class)
 		{
-			instance = new GUI();
+			if (instance == null)
+			{
+				instance = new GUI();
+			}
+			
+			return instance;
 		}
-
-		return instance;
 	}
-
+	
 	// Singleton!
 	private GUI()
 	{
 		initGUI();
 	}
-
+	
 }

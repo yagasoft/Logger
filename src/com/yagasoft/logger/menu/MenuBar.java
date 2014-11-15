@@ -1,14 +1,14 @@
-/*
- * Copyright (C) 2011-2014 by Ahmed Osama el-Sawalhy
- *
- *		The Modified MIT Licence (GPL v3 compatible)
- * 			Licence terms are in a separate file (LICENCE.md)
- *
- *		Project/File: KeepUp/com.yagasoft.keepup.ui.menu/MenuBar.java
- *
- *			Modified: 16-Jun-2014 (17:32:15)
- *			   Using: Eclipse J-EE / JDK 8 / Windows 8.1 x64
- */
+//******************************************************************
+// Copyright (C) 2011-2014 by Ahmed Osama el-Sawalhy
+//
+//		The Modified MIT Licence (GPL v3 compatible)
+// 			Licence terms are in a separate file (LICENCE.md)
+//
+//		Project/File: Logger/com.yagasoft.logger.menu/MenuBar.java
+//
+//			Modified: 31-Jul-2014 (10:12:37)
+//			   Using: Eclipse J-EE / JDK 8 / Windows 8.1 x64
+//******************************************************************
 
 package com.yagasoft.logger.menu;
 
@@ -38,25 +38,12 @@ public class MenuBar extends JMenuBar
 	/** Constant: SerialVersionUID. */
 	private static final long	serialVersionUID	= -8001930077352279137L;
 
-	private JMenu				fileMenu;
-	private JMenuItem			saveAsHTML;
-	private JMenuItem			saveAsTxt;
-	private JMenuItem			hide;
-	private JMenuItem			exit;
-
-	private JMenu				editMenu;
-	private JCheckBoxMenuItem	onlyErrorsToggle;
-	private JMenuItem			clear;
-	private JMenuItem			options;
-
-	private JMenu				helpMenu;
-	private JMenuItem			about;
-
 	/**
 	 * Instantiates a new menu bar.
 	 */
 	public MenuBar()
 	{
+		super();
 		initMenu();
 	}
 
@@ -66,21 +53,21 @@ public class MenuBar extends JMenuBar
 	private void initMenu()
 	{
 		// build file menu
-		fileMenu = new JMenu("File");
+		final JMenu fileMenu = new JMenu("File");
 
-		saveAsHTML = new JMenuItem("Save as HTML ...");
-		saveAsHTML.addActionListener(event -> Log.instance.saveAsHTML());
+		final JMenuItem saveAsHTML = new JMenuItem("Save as HTML ...");
+		saveAsHTML.addActionListener(event -> Log.getInstance().saveAsHTML());
 		fileMenu.add(saveAsHTML);
 
-		saveAsTxt = new JMenuItem("Save as text file ...");
-		saveAsTxt.addActionListener(event -> Log.instance.saveAsTxt());
+		final JMenuItem saveAsTxt = new JMenuItem("Save as text file ...");
+		saveAsTxt.addActionListener(event -> Log.getInstance().saveAsTxt());
 		fileMenu.add(saveAsTxt);
 
-		hide = new JMenuItem("Hide");
+		final JMenuItem hide = new JMenuItem("Hide");
 		hide.addActionListener(event -> GUI.getInstance().hideLogger());
 		fileMenu.add(hide);
 
-		exit = new JMenuItem("Exit");
+		final JMenuItem exit = new JMenuItem("Exit");
 		exit.addActionListener(event ->
 		{
 			GUI.getInstance().getFrame().setDefaultCloseOperation(WindowConstants.EXIT_ON_CLOSE);
@@ -92,10 +79,9 @@ public class MenuBar extends JMenuBar
 		add(fileMenu);
 
 		// build edit menu
-		editMenu = new JMenu("Edit");
-		editMenu.addActionListener(event -> onlyErrorsToggle.setSelected(Options.getInstance().isShowOnlyErrors()));
+		final JMenu editMenu = new JMenu("Edit");
 
-		onlyErrorsToggle = new JCheckBoxMenuItem("Show only errors");
+		final JMenuItem onlyErrorsToggle = new JCheckBoxMenuItem("Show only errors");
 		onlyErrorsToggle.setSelected(Options.getInstance().isShowOnlyErrors());
 		onlyErrorsToggle.addActionListener(event ->
 		{
@@ -103,25 +89,26 @@ public class MenuBar extends JMenuBar
 			Options.getInstance().saveOptions();
 		});
 		editMenu.add(onlyErrorsToggle);
+		editMenu.addActionListener(event -> onlyErrorsToggle.setSelected(Options.getInstance().isShowOnlyErrors()));
 
-		options = new JMenuItem("Options");
+		final JMenuItem options = new JMenuItem("Options");
 		options.addActionListener(event ->
 		{
-			OptionsPanel optionsPanel = new OptionsPanel();
-			JFrame frame = GUI.getInstance().showSubWindow(optionsPanel, "Options");
+			final OptionsPanel optionsPanel = new OptionsPanel();
+			final JFrame frame = GUI.getInstance().showSubWindow(optionsPanel, "Options");
 			optionsPanel.setFrame(frame);
 		});
 		editMenu.add(options);
 
-		clear = new JMenuItem("Clear log");
+		final JMenuItem clear = new JMenuItem("Clear log");
 		clear.addActionListener(event -> GUI.getInstance().clearLog());
 		editMenu.add(clear);
 
 		add(editMenu);
 
 		// build help menu
-		helpMenu = new JMenu("Help");
-		about = new JMenuItem("About");
+		final JMenu helpMenu = new JMenu("Help");
+		final JMenuItem about = new JMenuItem("About");
 		about.addActionListener(event -> GUI.getInstance().showSubWindow(new AboutPanel(), "About"));
 		helpMenu.add(about);
 		add(helpMenu);

@@ -1,14 +1,14 @@
-/*
- * Copyright (C) 2011-2014 by Ahmed Osama el-Sawalhy
- *
- *		The Modified MIT Licence (GPL v3 compatible)
- * 			Licence terms are in a separate file (LICENCE.md)
- *
- *		Project/File: KeepUp/com.yagasoft.keepup.ui.menu/About.java
- *
- *			Modified: 16-Jun-2014 (18:01:44)
- *			   Using: Eclipse J-EE / JDK 8 / Windows 8.1 x64
- */
+//******************************************************************
+// Copyright (C) 2011-2014 by Ahmed Osama el-Sawalhy
+//
+//		The Modified MIT Licence (GPL v3 compatible)
+// 			Licence terms are in a separate file (LICENCE.md)
+//
+//		Project/File: Logger/com.yagasoft.logger.menu.panels/AboutPanel.java
+//
+//			Modified: 31-Jul-2014 (10:13:10)
+//			   Using: Eclipse J-EE / JDK 8 / Windows 8.1 x64
+//******************************************************************
 
 package com.yagasoft.logger.menu.panels;
 
@@ -18,6 +18,8 @@ import java.awt.Color;
 import java.awt.Desktop;
 import java.awt.Dimension;
 import java.awt.Font;
+import java.io.IOException;
+import java.net.URISyntaxException;
 import java.net.URL;
 import java.util.Calendar;
 
@@ -37,38 +39,38 @@ import com.yagasoft.logger.Log;
  */
 public class AboutPanel extends JPanel
 {
-	
+
 	/** Constant: SerialVersionUID. */
 	private static final long	serialVersionUID	= -749076089730034103L;
-	
+
 	/**
 	 * Create the panel.
 	 */
 	public AboutPanel()
 	{
-		
+		super();
 		initGUI();
 	}
-	
+
 	/**
 	 * Build the 'About' panel..
 	 */
 	private void initGUI()
 	{
 		setLayout(new BorderLayout());
-		
+
 		// restrict size.
 		setPreferredSize(new Dimension(800, 400));
-		
+
 		// the title and version part.
-		String headerText = "Logger v" + Log.VERSION + "\n";
-		JLabel header = new JLabel(headerText);
+		final String headerText = "Logger v" + Log.VERSION + "\n";
+		final JLabel header = new JLabel(headerText);
 		header.setFont(new Font("Gabriola", Font.PLAIN, 35));
 		header.setBorder(BorderFactory.createLineBorder(Color.BLACK));
 		header.setHorizontalAlignment(SwingConstants.CENTER);
-		
+
 		// the license and credits part.
-		String license = "\nCopyright (C) 2011-" + (Calendar.getInstance().get(Calendar.YEAR)) + " by Ahmed Osama el-Sawalhy.\n"
+		final String license = "\nCopyright (C) 2011-" + (Calendar.getInstance().get(Calendar.YEAR)) + " by Ahmed Osama el-Sawalhy.\n"
 				+ "\n"
 				+ "          Modified MIT License (GPL v3 compatible):\n"
 				+ "\tPermission is hereby granted, free of charge, to any person obtaining a copy\n"
@@ -98,28 +100,27 @@ public class AboutPanel extends JPanel
 				+ "\tLIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,\n"
 				+ "\tOUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN\n"
 				+ "\tTHE SOFTWARE.\n";
-		String authorsHeader = "\nAuthor:\n";
-		String authors = "\tAhmed Osama el-Sawalhy\n";
+		final String authorsHeader = "\nAuthor:\n";
+		final String authors = "\tAhmed Osama el-Sawalhy\n";
 //		String creditsHeader = "\nCredits:\n";
 //		String credits = "\t.\n";
-		
+
 		// combine all the above.
-		String text = license + authorsHeader + authors/* + creditsHeader + credits*/;
-		JTextArea textArea = new JTextArea(text);
-		JScrollPane textAreaScrollPane = new JScrollPane(textArea);
+		final String text = license + authorsHeader + authors/* + creditsHeader + credits*/;
+		final JTextArea textArea = new JTextArea(text);
 		textArea.setFont(new Font("Verdana", Font.BOLD, 13));
 		textArea.setEditable(false);
-		
+
 		// hyper-link to web-site.
-		JButton linkButton = new JButton("Go to web-site");
+		final JButton linkButton = new JButton("Go to web-site");
 		linkButton.addActionListener(event -> openWebSite("http://yagasoft.com"));
-		
+
 		// add to the panel.
 		add(header, BorderLayout.NORTH);
-		add(textAreaScrollPane, BorderLayout.CENTER);
+		add(new JScrollPane(textArea), BorderLayout.CENTER);
 		add(linkButton, BorderLayout.SOUTH);
 	}
-	
+
 	/**
 	 * Open web site in the default browser.
 	 *
@@ -130,19 +131,22 @@ public class AboutPanel extends JPanel
 	 * @param link
 	 *            Link.
 	 */
-	private void openWebSite(String link)
+	private void openWebSite(final String link)
 	{
-		Desktop desktop = Desktop.isDesktopSupported() ? Desktop.getDesktop() : null;
-		
-		if ((desktop != null) && desktop.isSupported(Desktop.Action.BROWSE))
+		if (Desktop.isDesktopSupported())
 		{
-			try
+			final Desktop desktop = Desktop.getDesktop();
+
+			if (desktop.isSupported(Desktop.Action.BROWSE))
 			{
-				desktop.browse(new URL(link).toURI());
-			}
-			catch (Exception e)
-			{
-				e.printStackTrace();
+				try
+				{
+					desktop.browse(new URL(link).toURI());
+				}
+				catch (IOException | URISyntaxException e)
+				{
+					e.printStackTrace();
+				}
 			}
 		}
 	}
