@@ -6,7 +6,7 @@
 //
 //		Project/File: Logger/com.yagasoft.logger/Log.java
 //
-//			Modified: 31-Jul-2014 (11:18:46)
+//			Modified: 15-Nov-2014 (14:53:28)
 //			   Using: Eclipse J-EE / JDK 8 / Windows 8.1 x64
 //******************************************************************
 
@@ -21,45 +21,47 @@ import com.yagasoft.logger.menu.panels.option.Options;
  */
 public final class Log
 {
-	
+
 	/**
 	 * Options for {@link Logger#infoColouredSequence(int, String, String, SequenceOption...)}
 	 */
 	public static enum SequenceOption
 	{
-		
+
 		/** Remove separator after using it to split the string. */
 		REMOVE_SEPARATOR,
-		
+
 		/** Black-coloured last string. */
 		BLACK_LAST_STRING,
-		
+
 		/** Colour the last string. */
 		COLOUR_LAST_STRING,
-		
+
 		/** No option! */
 		NONE
 	}
-	
+
 	/** Constant: VERSION. */
-	public static final String	VERSION						= "6.03.235";
-	
+	public static final String	VERSION						= "6.04.240";
+
 	/** Instance. Set by calling {@link #initLogger(String, int, boolean)}. */
 	private static Logger		instance;
-	
+
 	/* Default number of colours. */
 	private static int			defaultNumberOfColours		= 7;
-	
+
 	/* Default coloured strings separator for {@link #infoColoured(String...)}. */
 	private static String		defaultColouringSeparator	= " ";
-	
+
 	/* Default black last string flag for {@link #infoColouredSeparator(String, String...)}. */
 	private static boolean		defaultBlackLastString;
-	
+
+	private static StringBuilder builder = new StringBuilder(512);
+
 	////////////////////////////////////////////////////////////////////////////////////////
 	// #region Initialisation.
 	//======================================================================================
-	
+
 	/**
 	 * Convenience method for {@link #initAndShowLogger(String, int, boolean)}, using defaults (' ', max, false).
 	 */
@@ -67,7 +69,7 @@ public final class Log
 	{
 		initAndShowLogger(getDefaultColouringSeparator(), getDefaultNumberOfColours(), defaultBlackLastString);
 	}
-	
+
 	/**
 	 * Convenience method for {@link #initLogger(String, int, boolean)}.
 	 *
@@ -84,7 +86,7 @@ public final class Log
 		initLogger(defaultSeparator, defaultNumberOfColours, defaultBlackLastString);
 		getInstance().getGui().showLogger();
 	}
-	
+
 	/**
 	 * Convenience method for {@link #initLogger(String, int, boolean)}, using defaults (' ', max, false).
 	 */
@@ -92,7 +94,7 @@ public final class Log
 	{
 		initLogger(getDefaultColouringSeparator(), getDefaultNumberOfColours(), defaultBlackLastString);
 	}
-	
+
 	/**
 	 * Initialises the logger by loading the options, initialising the log file, and the GUI.
 	 *
@@ -108,7 +110,7 @@ public final class Log
 	{
 		getInstance().initLogger(defaultSeparator, defaultNumberOfColours, defaultBlackLastString);
 	}
-	
+
 	/**
 	 * Show logger window.
 	 */
@@ -116,7 +118,7 @@ public final class Log
 	{
 		instance.getGui().showLogger();
 	}
-	
+
 	/**
 	 * Hide logger window.
 	 */
@@ -124,18 +126,18 @@ public final class Log
 	{
 		instance.getGui().hideLogger();
 	}
-	
+
 	//======================================================================================
 	// #endregion Initialisation.
 	////////////////////////////////////////////////////////////////////////////////////////
-	
+
 	// //////////////////////////////////////////////////////////////////////////////////////
 	// #region Public posting interface.
 	// ======================================================================================
-	
+
 	//--------------------------------------------------------------------------------------
 	// #region Info posting.
-	
+
 	/**
 	 * Informing log entry. You can use '`' character as to wrap words to be coloured. Colouring will cycle between 7 colours.
 	 *
@@ -149,7 +151,7 @@ public final class Log
 	{
 		instance.info(entry, coloursToUse);
 	}
-	
+
 	/**
 	 * Informing log entries. This will be posted one after the other in the same time-stamp.
 	 * You can use '`' character as to wrap words to be coloured. Colouring will cycle between colours.
@@ -163,7 +165,7 @@ public final class Log
 	{
 		instance.info(coloursToUse, entries);
 	}
-	
+
 	/**
 	 * Post strings, coloured using the max number of colours, and separated (added to entry) by the default set separator.
 	 * It doesn't colour the last string as black.
@@ -175,7 +177,7 @@ public final class Log
 	{
 		infoColouredSeparator(getDefaultColouringSeparator(), strings);
 	}
-	
+
 	/**
 	 * Post strings, coloured using the number of colours passed, and separated (added to entry) by the default set separator.
 	 *
@@ -190,7 +192,7 @@ public final class Log
 	{
 		infoColouredSeparator(coloursToUse, blackLastString, getDefaultColouringSeparator(), strings);
 	}
-	
+
 	/**
 	 * Post strings, coloured using the max number of colours, and separated (added to entry) by the passed separator.
 	 * It doesn't colour the last string as black.
@@ -204,7 +206,7 @@ public final class Log
 	{
 		infoColouredSeparator(getDefaultNumberOfColours(), defaultBlackLastString, separator, strings);
 	}
-	
+
 	/**
 	 * Post strings, coloured using the number of colours passed, and separated (added to entry) by the passed separator.
 	 *
@@ -222,7 +224,7 @@ public final class Log
 	{
 		instance.infoColouredSeparator(coloursToUse, blackLastString, separator, strings);
 	}
-	
+
 	/**
 	 * Post this string using {@link #infoColouredSequence(int, String, String, SequenceOption...)} after splitting it using
 	 * the separator passed. It forwards the {@link #defaultNumberOfColours}.
@@ -240,7 +242,7 @@ public final class Log
 	{
 		infoColouredSequence(getDefaultNumberOfColours(), separator, string, options);
 	}
-	
+
 	/**
 	 * Post this string using {@link #infoColouredSeparator(int, boolean, String, String...)} after splitting it using the
 	 * separator passed.
@@ -261,10 +263,10 @@ public final class Log
 	{
 		instance.infoColouredSequence(coloursToUse, separator, string, optionsList);
 	}
-	
+
 	// #endregion Info posting.
 	//--------------------------------------------------------------------------------------
-	
+
 	/**
 	 * Error log entry. You can use '`' character as to wrap words to be coloured black.
 	 *
@@ -275,7 +277,7 @@ public final class Log
 	{
 		instance.error(entry);
 	}
-	
+
 	/**
 	 * Error log entry. This will be posted one after the other in the same time-stamp.
 	 * You can use '`' character as to wrap words to be coloured black.
@@ -287,7 +289,7 @@ public final class Log
 	{
 		instance.errors(entries);
 	}
-	
+
 	/**
 	 * Exception log entry.
 	 *
@@ -298,11 +300,11 @@ public final class Log
 	{
 		instance.except(exception);
 	}
-	
+
 	// ======================================================================================
 	// #endregion Public posting interface.
 	// //////////////////////////////////////////////////////////////////////////////////////
-	
+
 	/**
 	 * Capture {@link System#out} or {@link System#err}. Useful for saving the output to file, or minimising the console to tray.
 	 */
@@ -310,11 +312,11 @@ public final class Log
 	{
 		Options.getInstance().setCaptureConsole(true);
 	}
-	
+
 	////////////////////////////////////////////////////////////////////////////////////////
 	// #region Setters and getters.
 	//======================================================================================
-	
+
 	/**
 	 * @return the defaultNumberOfColours
 	 */
@@ -322,7 +324,7 @@ public final class Log
 	{
 		return defaultNumberOfColours;
 	}
-	
+
 	/**
 	 * @param defaultNumberOfColours
 	 *            the defaultNumberOfColours to set
@@ -331,7 +333,7 @@ public final class Log
 	{
 		Log.defaultNumberOfColours = defaultNumberOfColours;
 	}
-	
+
 	/**
 	 * @return the defaultColouringSeparator
 	 */
@@ -339,7 +341,7 @@ public final class Log
 	{
 		return defaultColouringSeparator;
 	}
-	
+
 	/**
 	 * @param defaultColouringSeparator
 	 *            the defaultColouringSeparator to set
@@ -348,11 +350,31 @@ public final class Log
 	{
 		Log.defaultColouringSeparator = defaultColouringSeparator;
 	}
-	
+
 	//======================================================================================
 	// #endregion Setters and getters.
 	////////////////////////////////////////////////////////////////////////////////////////
-	
+
+
+	/**
+	 * Builds a string using a {@link StringBuilder} to save memory.
+	 *
+	 * @param objects
+	 *            Objects to extract strings from.
+	 * @return String built
+	 */
+	synchronized static String buildString(final Object... objects)
+	{
+		builder.setLength(0);
+
+		for (final Object object : objects)
+		{
+			builder.append(object.toString());
+		}
+
+		return builder.toString();
+	}
+
 	/**
 	 * Gets the instance.
 	 *
@@ -366,12 +388,12 @@ public final class Log
 			{
 				instance = new Logger();
 			}
-			
+
 			return instance;
 		}
 	}
-	
+
 	private Log()
 	{}
-	
+
 }

@@ -1,4 +1,4 @@
-Logger v6.03.235
+Logger v6.04.240
 ================
 
 A simple and stylised GUI logger that saves its entries to a log file in real time.

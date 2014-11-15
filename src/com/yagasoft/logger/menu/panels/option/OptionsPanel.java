@@ -35,13 +35,13 @@ import javax.swing.SwingConstants;
  */
 public class OptionsPanel extends JPanel implements ActionListener
 {
-
+	
 	/** Constant: SerialVersionUID. */
 	private static final long		serialVersionUID	= -1146451184847401905L;
-
+	
 	/** The frame to include this options panel. */
 	private JFrame					frame;
-
+	
 	private transient JButton		buttonOk;
 	private transient JButton		buttonCancel;
 	private transient JTextField	textFieldNumEntries;
@@ -49,7 +49,7 @@ public class OptionsPanel extends JPanel implements ActionListener
 	private transient JCheckBox		checkBoxWrapText;
 	private transient JCheckBox		checkBoxCaptureConsole;
 	private transient JCheckBox		checkBoxHideOnClose;
-
+	
 	/**
 	 * Create the panel.
 	 */
@@ -58,25 +58,25 @@ public class OptionsPanel extends JPanel implements ActionListener
 		super();
 		initGUI();
 	}
-
+	
 	/**
 	 * Inits the gui.
 	 */
 	private void initGUI()
 	{
 		setLayout(new BorderLayout(0, 0));
-
+		
 		// buttons
 		final JPanel buttonsPanel = new JPanel(new FlowLayout());
-
+		
 		buttonOk = new JButton("OK");
 		buttonOk.addActionListener(this);
 		buttonsPanel.add(buttonOk);
-
+		
 		buttonCancel = new JButton("Cancel");
 		buttonCancel.addActionListener(this);
 		buttonsPanel.add(buttonCancel);
-
+		
 		add(buttonsPanel, BorderLayout.SOUTH);
 		//
 		final JPanel panelOptionsList = new JPanel();
@@ -150,11 +150,11 @@ public class OptionsPanel extends JPanel implements ActionListener
 		panelOptionsListSpringLayout.putConstraint(SpringLayout.WEST, checkBoxCaptureConsole, 0, SpringLayout.WEST,
 				labelNumEntries);
 		panelOptionsList.add(checkBoxCaptureConsole);
-
+		
 		//
 		panelOptionsList.setPreferredSize(new Dimension(160, 175));
 	}
-
+	
 	/**
 	 * @see java.awt.event.ActionListener#actionPerformed(java.awt.event.ActionEvent)
 	 */
@@ -171,7 +171,7 @@ public class OptionsPanel extends JPanel implements ActionListener
 			frame.dispatchEvent(new WindowEvent(frame, WindowEvent.WINDOW_CLOSING));
 		}
 	}
-
+	
 	/**
 	 * Apply options to the application.
 	 */
@@ -183,8 +183,10 @@ public class OptionsPanel extends JPanel implements ActionListener
 		options.setWrap(checkBoxWrapText.isSelected());
 		options.setHideOnClose(checkBoxHideOnClose.isSelected());
 		options.setCaptureConsole(checkBoxCaptureConsole.isSelected());
+		
+		options.saveOptions();
 	}
-
+	
 	/**
 	 * Gets the frame.
 	 *
@@ -194,7 +196,7 @@ public class OptionsPanel extends JPanel implements ActionListener
 	{
 		return frame;
 	}
-
+	
 	/**
 	 * Sets the frame.
 	 *
