@@ -1,6 +1,8 @@
 Logger v6.04.240
 ================
 
+(No longer maintained!)
+
 A simple and stylised GUI logger that saves its entries to a log file in real time.
 
 ### Features:
